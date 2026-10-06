@@ -1,0 +1,10 @@
+{
+  "name": "Digital Decay",
+  "description": "A cursed image looper that rots your photos through 69 generations of AI entropy, culminating in a high-fidelity hallucination.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

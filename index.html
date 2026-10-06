@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>Digital Decay</title>
+    <meta name="description" content="A cursed image looper that rots your photos through 69 generations of AI entropy, culminating in a high-fidelity hallucination.">
+    <meta property="og:title" content="Digital Decay">
+    <meta property="og:description" content="A cursed image looper that rots your photos through 69 generations of AI entropy, culminating in a high-fidelity hallucination.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-teal: #00ffd5;
+            --color-magenta: #ff007f;
+            --color-purple: #7a00ff;
+            --color-blue: #008cff;
+            --bg-black: #000000;
+        }
+        body {
+            background-color: var(--bg-black);
+            color: var(--color-teal);
+            font-family: 'VT323', monospace;
+            cursor: crosshair;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #000;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--color-teal);
+        }
+        .scanline {
+            width: 100%;
+            height: 2px;
+            z-index: 99;
+            background: var(--color-teal);
+            opacity: 0.1;
+            position: fixed;
+            bottom: 100%;
+            animation: scanline 4s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes scanline {
+            0% { bottom: 120%; }
+            100% { bottom: -20px; }
+        }
+        .glitch-text {
+            text-shadow: 2px 0 var(--color-magenta), -2px 0 var(--color-blue);
+        }
+        .crt-flicker {
+            animation: flicker 0.1s infinite;
+        }
+        @keyframes flicker {
+            0% { opacity: 0.98; }
+            50% { opacity: 1; }
+            100% { opacity: 0.99; }
+        }
+
+        /* Button Guidance Animations */
+        @keyframes teal-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 213, 0.4); border-color: var(--color-teal); }
+            50% { box-shadow: 0 0 15px 2px rgba(0, 255, 213, 0.2); border-color: #fff; }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 213, 0.4); border-color: var(--color-teal); }
+        }
+        .animate-teal-pulse {
+            animation: teal-pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes magenta-flicker {
+            0% { opacity: 1; box-shadow: 0 0 10px var(--color-magenta); }
+            5% { opacity: 0.8; box-shadow: 0 0 2px var(--color-magenta); }
+            10% { opacity: 1; box-shadow: 0 0 12px var(--color-magenta); }
+            15% { opacity: 0.9; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            90% { opacity: 0.8; }
+            100% { opacity: 1; box-shadow: 0 0 10px var(--color-magenta); }
+        }
+        .animate-magenta-flicker {
+            animation: magenta-flicker 0.3s infinite;
+            background: rgba(255, 0, 127, 0.1);
+        }
+
+        @keyframes glimmer {
+            0% { background-position: -200% center; }
+            100% { background-position: 200% center; }
+        }
+        .animate-glimmer {
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            background-size: 200% 100%;
+            animation: glimmer 2s infinite linear;
+            border-color: #fff !important;
+            color: #fff !important;
+        }
+
+        .terminal-border {
+            border: 1px solid var(--color-teal);
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            background: transparent;
+            width: 100%;
+            height: 32px;
+            margin: 0;
+        }
+        input[type="range"]:focus {
+            outline: none;
+        }
+        /* Track */
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 2px;
+            background: var(--color-teal);
+            opacity: 0.4;
+            cursor: pointer;
+        }
+        /* Thumb */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 12px;
+            background: var(--color-magenta);
+            cursor: pointer;
+            margin-top: -11px;
+            border: 1px solid var(--color-teal);
+            border-radius: 0;
+        }
+        /* Firefox */
+        input[type="range"]::-moz-range-track {
+            width: 100%;
+            height: 2px;
+            background: var(--color-teal);
+            opacity: 0.4;
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            height: 24px;
+            width: 12px;
+            background: var(--color-magenta);
+            cursor: pointer;
+            border: 1px solid var(--color-teal);
+            border-radius: 0;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "gif.js.optimized": "https://esm.sh/gif.js.optimized@1.0.1",
+    "idb": "https://esm.sh/idb@8.0.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div class="scanline"></div>
+    <div id="root" class="crt-flicker"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
