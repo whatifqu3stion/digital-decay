@@ -116,24 +116,44 @@ export class GeminiDecayService {
 
     while (attempt <= maxRetries) {
       try {
-        const response = await fetch('/api/decay', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            image: cleanBase64,
-            mimeType,
-            options: {
-              injections: options.injections,
-              customPrompt: options.customPrompt,
-              overrideCoreDirective: options.overrideCoreDirective,
-              decayRate: options.decayRate
-            }
-          })
-        });
+        let response: Response;
+        let useDirect = false;
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({ error: response.statusText }));
-          const errorMessage = errData.error || `HTTP ${response.status}: Decay request failed`;
+        try {
+          response = await fetch('/api/decay', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              image: cleanBase64,
+              mimeType,
+              options: {
+                injections: options.injections,
+                customPrompt: options.customPrompt,
+                overrideCoreDirective: options.overrideCoreDirective,
+                decayRate: options.decayRate
+              }
+            })
+          });
+
+          if (response.status === 404) {
+            useDirect = true;
+          }
+        } catch (_) {
+          // Network error or static host without backend proxy
+          useDirect = true;
+        }
+
+        // If static host like GitHub Pages, call Gemini directly with visitor's key
+        if (useDirect) {
+          if (!effectiveVisitorKey) {
+            throw new Error("API_KEY_REQUIRED: Please connect your Gemini API key to generate frames.");
+          }
+          return await this.processFrameDirect(cleanBase64, mimeType, options, effectiveVisitorKey);
+        }
+
+        if (!response!.ok) {
+          const errData = await response!.json().catch(() => ({ error: response!.statusText }));
+          const errorMessage = errData.error || `HTTP ${response!.status}: Decay request failed`;
           
           if (response.status === 429 || errorMessage.includes('429') || errorMessage.includes('quota')) {
             attempt++;
@@ -176,6 +196,93 @@ export class GeminiDecayService {
     }
 
     return null;
+  }
+
+  private async processFrameDirect(
+    cleanBase64: string,
+    mimeType: string,
+    options: DecayFrameOptions,
+    apiKey: string
+  ): Promise<Blob | null> {
+    const INJECTION_MAP: Record<string, string> = {
+      CHROMATIC_ABERRATION: ' Introduce extremely subtle, barely perceptible chromatic aberration.',
+      JPEG_ARTIFACTS: ' Introduce very slight, subtle jpeg compression artifacts.',
+      SCANLINE_GHOSTING: ' Add very faint, subtle scanline ghosting.',
+      DATAMOSH_GLITCHING: ' Introduce very subtle, minor data moshing glitches.',
+      VHS_DISTORTION: ' Introduce very slight VHS-style distortion, faint noise, and subtle color bleed.'
+    };
+
+    const decayRate = options?.decayRate ?? 1.0;
+    let temperature = (decayRate - 0.5) * 1.8 + 0.1;
+    temperature = Math.max(0.0, Math.min(2.0, temperature));
+
+    let promptPrefix = '';
+    if (decayRate < 0.8) {
+      promptPrefix = 'STRICT VISUAL COPY: Create an exact visual replica of the provided image. High fidelity reconstruction. Do not hallucinate new details. ';
+    } else if (decayRate > 1.2) {
+      promptPrefix = 'LOOSE INTERPRETATION: Allow for dream-like drift, creative reimagining, and visual hallucinations. ';
+    } else {
+      promptPrefix = 'Create a visual variation of this image. ';
+    }
+
+    let prompt = options?.overrideCoreDirective ? '' : (promptPrefix + BASE_ROT_PROMPT);
+
+    if (options?.overrideCoreDirective && options?.customPrompt) {
+      prompt = options.customPrompt;
+    }
+
+    if (Array.isArray(options?.injections)) {
+      options.injections.forEach((key: string) => {
+        if (INJECTION_MAP[key]) prompt += INJECTION_MAP[key];
+      });
+    }
+
+    if (!options?.overrideCoreDirective && options?.customPrompt && options.customPrompt.trim().length > 0) {
+      prompt += ` ${options.customPrompt}`;
+    }
+
+    const directEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
+
+    const res = await fetch(directEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                inlineData: {
+                  mimeType,
+                  data: cleanBase64
+                }
+              },
+              {
+                text: prompt
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature
+        }
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: { message: res.statusText } }));
+      throw new Error(err.error?.message || `Direct API Error: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const candidate = data.candidates?.[0];
+    const parts = candidate?.content?.parts;
+    const imagePart = parts?.find((p: any) => p.inlineData?.data);
+
+    if (imagePart?.inlineData?.data) {
+      return this.base64ToBlob(imagePart.inlineData.data, imagePart.inlineData.mimeType || 'image/png');
+    }
+
+    throw new Error("MODEL_ERROR: Fragment manifestation failed from direct API.");
   }
 
   private base64ToBlob(base64: string, mimeType: string = 'image/png'): Blob {
