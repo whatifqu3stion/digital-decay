@@ -552,7 +552,16 @@ const App: React.FC = () => {
   };
 
   const executeDecay = async () => {
-    const sourceBlob = await DBService.getImage('source');
+    let sourceBlob = await DBService.getImage('source');
+    
+    // Robust fallback: if DBService returned undefined but sourceImageUrl exists, rehydrate from blob URL
+    if (!sourceBlob && sourceImageUrl) {
+      try {
+        const res = await fetch(sourceImageUrl);
+        sourceBlob = await res.blob();
+        await DBService.saveImage('source', sourceBlob);
+      } catch (_) {}
+    }
     
     // If we're restarting or starting fresh
     let startFrame = currentFrame;
@@ -1154,19 +1163,20 @@ const App: React.FC = () => {
                       imageRendering: 'pixelated' 
                     }}
                   />
-                  {/* Internal Label Left */}
-                  <div 
-                    title="Shows the original uploaded image."
-                    className="absolute top-10 left-4 text-xs bg-black/80 px-2 py-1 border border-[#00ffd5] text-[#00ffd5] tracking-widest font-bold z-20 pointer-events-auto cursor-help"
-                  >
-                    INPUT_TENSOR [SRC]
-                  </div>
                 </div>
 
-                {/* Internal Label Right */}
+                {/* HUD Label Left: Fixed geometry, never wraps or changes shape */}
+                <div 
+                  title="Shows the original uploaded image."
+                  className="absolute top-10 left-4 text-xs bg-black/85 px-2 py-1 border border-[#00ffd5] text-[#00ffd5] tracking-widest font-bold z-20 pointer-events-auto cursor-help whitespace-nowrap select-none shadow-[0_0_12px_rgba(0,0,0,0.85)]"
+                >
+                  INPUT_TENSOR [SRC]
+                </div>
+
+                {/* HUD Label Right: Fixed geometry, never wraps or changes shape */}
                 <div 
                   title="Shows the current state of the decayed image."
-                  className="absolute top-10 right-4 text-xs bg-black/80 px-2 py-1 border border-[#7a00ff] text-[#e5e5e5] tracking-widest font-bold z-[5] pointer-events-auto cursor-help"
+                  className="absolute top-10 right-4 text-xs bg-black/85 px-2 py-1 border border-[#7a00ff] text-[#e5e5e5] tracking-widest font-bold z-20 pointer-events-auto cursor-help whitespace-nowrap select-none shadow-[0_0_12px_rgba(0,0,0,0.85)]"
                 >
                   OUTPUT_TENSOR [GEN_{String(viewingFrame).padStart(2, '0')}]
                 </div>

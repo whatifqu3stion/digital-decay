@@ -1,3 +1,5 @@
+import { GoogleGenAI } from '@google/genai';
+
 export const BASE_ROT_PROMPT = "Preserve the shapes and basic colors of the previous iteration.";
 
 export interface DecayFrameOptions {
@@ -30,7 +32,6 @@ export class GeminiDecayService {
         } catch (_) {}
 
         // Security: Scrub key from the address bar immediately
-        // Prevents shoulder-surfing, URL copy-paste leaks, and bookmark exposure
         params.delete('gemini_api_key');
         const newQuery = params.toString();
         const newUrl = window.location.pathname + (newQuery ? `?${newQuery}` : '') + window.location.hash;
@@ -38,12 +39,37 @@ export class GeminiDecayService {
       } else {
         const sessionKey = sessionStorage.getItem('decay_visitor_key');
         const localKey = localStorage.getItem('decay_visitor_key');
-        const storedKey = sessionKey || localKey;
-        if (storedKey) {
-          this.visitorApiKey = storedKey;
+        if (sessionKey) {
+          this.visitorApiKey = sessionKey;
+        } else if (localKey) {
+          this.visitorApiKey = localKey;
+          try {
+            sessionStorage.setItem('decay_visitor_key', localKey);
+          } catch (_) {}
         }
       }
     } catch (_) {}
+  }
+
+  getVisitorApiKey(): string | null {
+    if (this.visitorApiKey) return this.visitorApiKey;
+    if (typeof window !== 'undefined') {
+      try {
+        const sessionKey = sessionStorage.getItem('decay_visitor_key');
+        if (sessionKey) {
+          this.visitorApiKey = sessionKey;
+          return sessionKey;
+        }
+        const localKey = localStorage.getItem('decay_visitor_key');
+        if (localKey) {
+          this.visitorApiKey = localKey;
+          return localKey;
+        }
+      } catch (_) {}
+      const params = new URLSearchParams(window.location.search);
+      return params.get('gemini_api_key');
+    }
+    return null;
   }
 
   setVisitorApiKey(key: string | null, remember: boolean = true) {
@@ -54,6 +80,8 @@ export class GeminiDecayService {
           sessionStorage.setItem('decay_visitor_key', key);
           if (remember) {
             localStorage.setItem('decay_visitor_key', key);
+          } else {
+            localStorage.removeItem('decay_visitor_key');
           }
         } else {
           sessionStorage.removeItem('decay_visitor_key');
@@ -61,27 +89,6 @@ export class GeminiDecayService {
         }
       } catch (_) {}
     }
-  }
-
-  getVisitorApiKey(): string | null {
-    if (this.visitorApiKey) return this.visitorApiKey;
-    if (typeof window !== 'undefined') {
-      try {
-        const session = sessionStorage.getItem('decay_visitor_key');
-        if (session) {
-          this.visitorApiKey = session;
-          return session;
-        }
-        const local = localStorage.getItem('decay_visitor_key');
-        if (local) {
-          this.visitorApiKey = local;
-          return local;
-        }
-      } catch (_) {}
-      const params = new URLSearchParams(window.location.search);
-      return params.get('gemini_api_key');
-    }
-    return null;
   }
 
   async processFrame(
@@ -111,42 +118,50 @@ export class GeminiDecayService {
       headers['x-gemini-api-key'] = effectiveVisitorKey;
     }
 
+    const isStaticDeployment = typeof window !== 'undefined' && (
+      window.location.hostname.endsWith('github.io') ||
+      window.location.protocol === 'file:' ||
+      (window.location.hostname === 'localhost' && window.location.port === '5173')
+    );
+
     let attempt = 0;
     const maxRetries = 5;
 
     while (attempt <= maxRetries) {
       try {
-        let response: Response;
-        let useDirect = false;
+        let response: Response | null = null;
+        let useDirect = isStaticDeployment;
 
-        try {
-          response = await fetch('/api/decay', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              image: cleanBase64,
-              mimeType,
-              options: {
-                injections: options.injections,
-                customPrompt: options.customPrompt,
-                overrideCoreDirective: options.overrideCoreDirective,
-                decayRate: options.decayRate
-              }
-            })
-          });
+        if (!useDirect) {
+          try {
+            response = await fetch('/api/decay', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                image: cleanBase64,
+                mimeType,
+                options: {
+                  injections: options.injections,
+                  customPrompt: options.customPrompt,
+                  overrideCoreDirective: options.overrideCoreDirective,
+                  decayRate: options.decayRate
+                }
+              })
+            });
 
-          if (response.status === 404) {
+            // 404 or 405 (Method Not Allowed on static servers) triggers client direct API fallback
+            if (response.status === 404 || response.status === 405) {
+              useDirect = true;
+            }
+          } catch (_) {
             useDirect = true;
           }
-        } catch (_) {
-          // Network error or static host without backend proxy
-          useDirect = true;
         }
 
-        // If static host like GitHub Pages, call Gemini directly with visitor's key
+        // On static hosting like GitHub Pages, call Gemini directly with visitor's key
         if (useDirect) {
           if (!effectiveVisitorKey) {
-            throw new Error("API_KEY_REQUIRED: Please connect your Gemini API key to generate frames.");
+            throw new Error("AUTH_REQUIRED: Connect your Gemini API key to begin generation.");
           }
           return await this.processFrameDirect(cleanBase64, mimeType, options, effectiveVisitorKey);
         }
@@ -155,7 +170,7 @@ export class GeminiDecayService {
           const errData = await response!.json().catch(() => ({ error: response!.statusText }));
           const errorMessage = errData.error || `HTTP ${response!.status}: Decay request failed`;
           
-          if (response.status === 429 || errorMessage.includes('429') || errorMessage.includes('quota')) {
+          if (response!.status === 429 || errorMessage.includes('429') || errorMessage.includes('quota')) {
             attempt++;
             if (attempt > maxRetries) {
               throw new Error(`MAX_RETRIES_EXCEEDED: ${errorMessage}`);
@@ -169,7 +184,7 @@ export class GeminiDecayService {
           throw new Error(errorMessage);
         }
 
-        const data = await response.json();
+        const data = await response!.json();
         if (data.image) {
           return this.base64ToBlob(data.image, data.mimeType || 'image/png');
         }
@@ -182,7 +197,6 @@ export class GeminiDecayService {
           throw error;
         }
 
-        // If not already handled by status check
         if (error.message?.includes('429') || error.message?.includes('quota')) {
           attempt++;
           const backoffTime = Math.pow(2, attempt) * 2000 + Math.random() * 500;
@@ -241,45 +255,39 @@ export class GeminiDecayService {
       prompt += ` ${options.customPrompt}`;
     }
 
-    const directEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
-
-    const res = await fetch(directEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                inlineData: {
-                  mimeType,
-                  data: cleanBase64
-                }
-              },
-              {
-                text: prompt
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature
-        }
-      })
+    const ai = new GoogleGenAI({
+      apiKey
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { message: res.statusText } }));
-      throw new Error(err.error?.message || `Direct API Error: ${res.status}`);
-    }
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              data: cleanBase64,
+              mimeType
+            }
+          },
+          {
+            text: prompt
+          }
+        ]
+      },
+      config: {
+        temperature,
+        imageConfig: {
+          aspectRatio: '1:1'
+        }
+      }
+    });
 
-    const data = await res.json();
-    const candidate = data.candidates?.[0];
-    const parts = candidate?.content?.parts;
-    const imagePart = parts?.find((p: any) => p.inlineData?.data);
-
-    if (imagePart?.inlineData?.data) {
-      return this.base64ToBlob(imagePart.inlineData.data, imagePart.inlineData.mimeType || 'image/png');
+    if (response.candidates && response.candidates[0]?.content?.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData?.data) {
+          return this.base64ToBlob(part.inlineData.data, part.inlineData.mimeType || 'image/png');
+        }
+      }
     }
 
     throw new Error("MODEL_ERROR: Fragment manifestation failed from direct API.");
