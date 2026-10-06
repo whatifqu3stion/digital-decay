@@ -90,6 +90,7 @@ const App: React.FC = () => {
 
   const terminalRef = useRef<HTMLDivElement>(null);
   const decayService = useRef(new GeminiDecayService());
+  const sessionRestoredRef = useRef(false);
 
   const addLog = useCallback((message: string, type: LogEntry['type'] = 'info') => {
     const newLog: LogEntry = {
@@ -99,6 +100,11 @@ const App: React.FC = () => {
       type
     };
     setLogs(prev => {
+        // Prevent duplicate consecutive entries with identical content
+        const lastLog = prev[prev.length - 1];
+        if (lastLog && lastLog.message === `> ${message}`) {
+          return prev;
+        }
         const updated = [...prev.slice(-99), newLog];
         DBService.saveState('logs', updated); // Persist logs
         return updated;
@@ -107,6 +113,9 @@ const App: React.FC = () => {
 
   // Restore Session
   useEffect(() => {
+    if (sessionRestoredRef.current) return;
+    sessionRestoredRef.current = true;
+
     const restoreSession = async () => {
       try {
         const savedState = await DBService.getState('appStatus');
