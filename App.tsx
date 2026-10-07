@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalNotice, setAuthModalNotice] = useState<string | null>(null);
   const [keyAttached, setKeyAttached] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
@@ -719,12 +720,30 @@ const App: React.FC = () => {
         } catch (err: any) {
           const errorMessage = err?.message || 'UNKNOWN_SIGNAL_LOSS';
           
-          // Check if rate limited (429 or quota)
-          if (errorMessage.includes('RATE_LIMIT_429') || errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+          // 1. Hard daily quota exhaustion or zero-quota plan (e.g. limit: 0, retry in 6h)
+          if (
+            errorMessage.includes('DAILY_QUOTA_EXHAUSTED') ||
+            errorMessage.includes('limit: 0') ||
+            errorMessage.includes('RequestsPerDay') ||
+            errorMessage.includes('Please retry in') ||
+            errorMessage.includes('check your plan and billing') ||
+            errorMessage.includes('BILLING_REQUIRED')
+          ) {
+            playAudio('error');
+            addLog(`🚫 QUOTA LIMIT (limit: 0): Google has allocated 0 free generations for this key/plan.`, 'error');
+            addLog(`ACTION: Connect an API key from an AI Studio project with Google Cloud billing enabled.`, 'warning');
+            setAppState(AppState.ERROR);
+            setAuthModalNotice("Google allocated 0 free image quota (limit: 0) for this key. Please connect an API key from an AI Studio project with Google Cloud billing enabled.");
+            setShowAuthModal(true);
+            return;
+          }
+
+          // 2. Short-term rolling minute rate limit (RPM burst)
+          if (errorMessage.includes('RATE_LIMIT_RPM') || errorMessage.includes('RATE_LIMIT_429')) {
             rateLimitRetries++;
             playAudio('error');
             const cooldownSec = Math.min(30, 15 + rateLimitRetries * 5);
-            addLog(`⚠️ RATE_LIMIT_429: Google quota saturated at Gen_${String(i).padStart(2, '0')}.`, 'warning');
+            addLog(`⚠️ RATE_LIMIT_RPM: Temporary minute limit reached at Gen_${String(i).padStart(2, '0')}.`, 'warning');
             addLog(`[ ⏳ AUTO-COOLING: Pausing ${cooldownSec}s to replenish quota... ]`, 'warning');
             decayService.current.getPacer().recordCooldown(cooldownSec);
             await new Promise(r => setTimeout(r, cooldownSec * 1000));
@@ -732,7 +751,7 @@ const App: React.FC = () => {
             continue;
           }
 
-          // Fatal errors (e.g. invalid key, billing required, model not found)
+          // 3. Other fatal errors (e.g. invalid key, model not found)
           playAudio('error');
           addLog(`ERR: ${errorMessage}`, 'error');
           setAppState(AppState.ERROR);
@@ -1091,9 +1110,10 @@ const App: React.FC = () => {
 
       <AuthKeyModal 
         isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
+        onClose={() => { setShowAuthModal(false); setAuthModalNotice(null); }}
         currentKey={decayService.current.getVisitorApiKey()}
         selectedModelId={selectedModelId}
+        quotaNotice={authModalNotice}
         onSelectModel={(modelId) => {
           setSelectedModelId(modelId);
           decayService.current.setSelectedModel(modelId);
@@ -1103,12 +1123,14 @@ const App: React.FC = () => {
           decayService.current.setVisitorApiKey(null);
           setKeyAttached(false);
           setShowAuthModal(false);
+          setAuthModalNotice(null);
           addLog("AUTH: Key removed from device memory.", "info");
         }}
         onSuccess={(key, remember) => {
           decayService.current.setVisitorApiKey(key, remember);
           setKeyAttached(true);
           setShowAuthModal(false);
+          setAuthModalNotice(null);
           addLog("AUTH_SUCCESS: Key attached to device memory. Ready.", "success");
           setTimeout(() => {
             executeDecay();
@@ -1140,6 +1162,7 @@ const App: React.FC = () => {
           <button
             onClick={() => {
               playAudio('click');
+              setAuthModalNotice(null);
               setShowAuthModal(true);
             }}
             className={`border px-2.5 py-1 text-xs font-mono tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -1154,7 +1177,7 @@ const App: React.FC = () => {
 
           {/* Key Status Button */}
           <button 
-            onClick={() => { playAudio('click'); setShowAuthModal(true); }}
+            onClick={() => { playAudio('click'); setAuthModalNotice(null); setShowAuthModal(true); }}
             className={`border px-2.5 py-1 text-xs font-mono tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
               keyAttached 
                 ? 'border-[#00ffd5] text-[#00ffd5] bg-[#00ffd5]/10 hover:bg-[#00ffd5] hover:text-black shadow-[0_0_10px_rgba(0,255,213,0.2)] font-bold' 

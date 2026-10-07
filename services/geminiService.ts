@@ -312,8 +312,18 @@ export class GeminiDecayService {
       const errData = await response!.json().catch(() => ({ error: response!.statusText }));
       const errorMessage = errData.error || `HTTP ${response!.status}: Decay request failed`;
       
+      if (
+        errorMessage.includes('DAILY_QUOTA_EXHAUSTED') ||
+        errorMessage.includes('limit: 0') ||
+        errorMessage.includes('RequestsPerDay') ||
+        errorMessage.includes('Please retry in') ||
+        errorMessage.includes('check your plan and billing')
+      ) {
+        throw new Error("DAILY_QUOTA_EXHAUSTED: Google has allocated 0 free image generations for this project (limit: 0) or daily quota is depleted. Please connect an API key with Google Cloud billing enabled.");
+      }
+
       if (response!.status === 429 || errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
-        throw new Error("RATE_LIMIT_429: Google quota saturated. Entering cooldown...");
+        throw new Error("RATE_LIMIT_RPM: Short-term rolling minute limit reached. Entering brief cooldown...");
       }
 
       throw new Error(errorMessage);
@@ -420,8 +430,17 @@ export class GeminiDecayService {
       const errMsg = err?.message || String(err);
       console.error(`Direct invocation of ${targetModelConfig.id} failed:`, err);
 
+      if (
+        errMsg.includes('limit: 0') ||
+        errMsg.includes('RequestsPerDay') ||
+        errMsg.includes('Please retry in') ||
+        errMsg.includes('check your plan and billing')
+      ) {
+        throw new Error("DAILY_QUOTA_EXHAUSTED: Google has allocated 0 free image generations for this project (limit: 0) or daily quota is depleted. Please connect an API key with Google Cloud billing enabled.");
+      }
+
       if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED')) {
-        throw new Error("RATE_LIMIT_429: Google quota saturated. Entering cooldown...");
+        throw new Error("RATE_LIMIT_RPM: Short-term rolling minute limit reached. Entering brief cooldown...");
       }
       if (errMsg.includes('billing') || errMsg.includes('BILLING') || errMsg.includes('Billing')) {
         throw new Error(`BILLING_REQUIRED: ${targetModelConfig.name} requires an active Google Cloud billing account. Switch to ${AVAILABLE_MODELS['gemini-2.5-flash-image'].name} for the free tier.`);

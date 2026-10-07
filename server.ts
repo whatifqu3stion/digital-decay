@@ -128,9 +128,22 @@ app.post('/api/decay', async (req, res) => {
     return res.status(500).json({ error: 'MODEL_ERROR: Fragment manifestation failed.' });
   } catch (error: any) {
     console.error('Decay endpoint error:', error);
+    const msg = error.message || 'Decay generation failed';
+
+    if (
+      msg.includes('limit: 0') ||
+      msg.includes('RequestsPerDay') ||
+      msg.includes('Please retry in') ||
+      msg.includes('check your plan and billing')
+    ) {
+      return res.status(429).json({
+        error: "DAILY_QUOTA_EXHAUSTED: Google has allocated 0 free image generations for this project (limit: 0) or daily quota is depleted. Please connect an API key with Google Cloud billing enabled."
+      });
+    }
+
     const status = error.status || error.code || 500;
     return res.status(typeof status === 'number' && status >= 400 && status < 600 ? status : 500).json({
-      error: error.message || 'Decay generation failed'
+      error: msg
     });
   }
 });

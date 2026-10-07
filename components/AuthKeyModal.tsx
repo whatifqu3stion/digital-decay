@@ -11,6 +11,7 @@ interface AuthKeyModalProps {
   onPurge?: () => void;
   selectedModelId?: string;
   onSelectModel?: (modelId: string) => void;
+  quotaNotice?: string | null;
 }
 
 export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({ 
@@ -20,7 +21,8 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
   currentKey,
   onPurge,
   selectedModelId = 'gemini-2.5-flash-image',
-  onSelectModel
+  onSelectModel,
+  quotaNotice
 }) => {
   const [remember, setRemember] = useState(true);
   const [inputKey, setInputKey] = useState('');
@@ -110,6 +112,13 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
             [CLOSE]
           </button>
         </div>
+
+        {/* Quota Notice Banner if triggered by rate/quota limit */}
+        {quotaNotice && (
+          <div className="p-2.5 border border-[#ff007f] bg-[#ff007f]/10 text-[#ff007f] text-[11px] mb-3 leading-tight">
+            ⚠️ {quotaNotice}
+          </div>
+        )}
 
         <div className="space-y-4">
           
