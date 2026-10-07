@@ -9,8 +9,10 @@ export const BASE_ROT_PROMPT = "Preserve the shapes and basic colors of the prev
 // 1. FREE TIER: Gemini 2.5 Flash Image has a real free allotment of ~500 requests/day
 //    via any standard AI Studio API key without requiring a credit card or billing account.
 //    NOTE: It strictly requires responseModalities: ['TEXT', 'IMAGE'] to return image parts.
+//    Rate limit: ~10 RPM ceiling (safe pacing target: 8 requests per 60s window).
 // 2. PAID TIER: Gemini 3.1 Flash Image is the newer Nano Banana 2 architecture.
 //    It requires pay-as-you-go Google Cloud billing enabled on the project ($0.045/image).
+//    Rate limit: High throughput, minimal pacing needed.
 // ============================================================================
 
 export interface ModelTierConfig {
@@ -21,6 +23,9 @@ export interface ModelTierConfig {
   isFreeTier: boolean;
   dailyQuotaInfo: string;
   billingRequirement: string;
+  maxRequestsPerWindow: number; // Max requests within windowMs
+  windowMs: number;             // Sliding window length in ms
+  minDelayMs: number;           // Minimum spacing between sequential requests
   responseModalities?: ('TEXT' | 'IMAGE')[];
 }
 
@@ -33,6 +38,9 @@ export const AVAILABLE_MODELS: Record<string, ModelTierConfig> = {
     isFreeTier: true,
     dailyQuotaInfo: '~500 free generations per day',
     billingRequirement: 'No credit card or billing account needed. Works with standard free AI Studio keys.',
+    maxRequestsPerWindow: 8,    // Safely under the 10 RPM ceiling
+    windowMs: 60000,            // 60-second rolling window
+    minDelayMs: 4000,           // 4s minimum pacing between completed frames
     responseModalities: ['TEXT', 'IMAGE']
   },
   'gemini-3.1-flash-image': {
@@ -43,6 +51,9 @@ export const AVAILABLE_MODELS: Record<string, ModelTierConfig> = {
     isFreeTier: false,
     dailyQuotaInfo: 'Unlimited pay-as-you-go quota',
     billingRequirement: 'Requires Google Cloud billing enabled on your AI Studio project ($0.045/image).',
+    maxRequestsPerWindow: 30,   // High-throughput allowance
+    windowMs: 60000,
+    minDelayMs: 1200,           // 1.2s rapid pacing
     responseModalities: ['TEXT', 'IMAGE']
   }
 };
@@ -58,13 +69,72 @@ export interface DecayFrameOptions {
   modelId?: string;
 }
 
+// ============================================================================
+// DYNAMIC SLIDING-WINDOW RATE PACER
+// ============================================================================
+export class SlidingWindowPacer {
+  private timestamps: number[] = [];
+  private lastRequestTime: number = 0;
+
+  async waitForSlot(
+    modelConfig: ModelTierConfig,
+    onCooldown?: (secondsRemaining: number) => void
+  ): Promise<void> {
+    const now = Date.now();
+    // 1. Purge timestamps older than the sliding window
+    this.timestamps = this.timestamps.filter(t => now - t < modelConfig.windowMs);
+
+    // 2. Enforce minimum delay between calls
+    const elapsedSinceLast = now - this.lastRequestTime;
+    if (elapsedSinceLast < modelConfig.minDelayMs) {
+      const waitMs = modelConfig.minDelayMs - elapsedSinceLast;
+      await new Promise(r => setTimeout(r, waitMs));
+    }
+
+    // 3. Check if rolling window limit is reached
+    while (this.timestamps.length >= modelConfig.maxRequestsPerWindow) {
+      const oldest = this.timestamps[0];
+      const timeRemainingMs = modelConfig.windowMs - (Date.now() - oldest) + 400; // 400ms safety cushion
+      if (timeRemainingMs > 0) {
+        const secondsRemaining = Math.ceil(timeRemainingMs / 1000);
+        if (onCooldown) {
+          onCooldown(secondsRemaining);
+        }
+        await new Promise(r => setTimeout(r, Math.min(timeRemainingMs, 1000)));
+      }
+      this.timestamps = this.timestamps.filter(t => Date.now() - t < modelConfig.windowMs);
+    }
+
+    // Record request timestamp
+    const mark = Date.now();
+    this.timestamps.push(mark);
+    this.lastRequestTime = mark;
+  }
+
+  recordCooldown(seconds: number = 18) {
+    const now = Date.now();
+    this.lastRequestTime = now + (seconds * 1000);
+    this.timestamps.push(now + (seconds * 1000));
+  }
+
+  reset() {
+    this.timestamps = [];
+    this.lastRequestTime = 0;
+  }
+}
+
 export class GeminiDecayService {
   private visitorApiKey: string | null = null;
   private selectedModelId: string = DEFAULT_MODEL_ID;
+  private pacer = new SlidingWindowPacer();
 
   constructor() {
     this.initVisitorKey();
     this.initSelectedModel();
+  }
+
+  getPacer(): SlidingWindowPacer {
+    return this.pacer;
   }
 
   private initVisitorKey() {
@@ -200,93 +270,61 @@ export class GeminiDecayService {
       (window.location.hostname === 'localhost' && window.location.port === '5173')
     );
 
-    let attempt = 0;
-    const maxRetries = 3;
+    let response: Response | null = null;
+    let useDirect = isStaticDeployment;
 
-    while (attempt <= maxRetries) {
+    if (!useDirect) {
       try {
-        let response: Response | null = null;
-        let useDirect = isStaticDeployment;
-
-        if (!useDirect) {
-          try {
-            response = await fetch('/api/decay', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({
-                image: cleanBase64,
-                mimeType,
-                model: modelToUse,
-                options: {
-                  injections: options.injections,
-                  customPrompt: options.customPrompt,
-                  overrideCoreDirective: options.overrideCoreDirective,
-                  decayRate: options.decayRate
-                }
-              })
-            });
-
-            // 404 or 405 (Method Not Allowed on static servers) triggers client direct API fallback
-            if (response.status === 404 || response.status === 405) {
-              useDirect = true;
+        response = await fetch('/api/decay', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            image: cleanBase64,
+            mimeType,
+            model: modelToUse,
+            options: {
+              injections: options.injections,
+              customPrompt: options.customPrompt,
+              overrideCoreDirective: options.overrideCoreDirective,
+              decayRate: options.decayRate
             }
-          } catch (_) {
-            useDirect = true;
-          }
+          })
+        });
+
+        // 404 or 405 (Method Not Allowed on static servers) triggers client direct API fallback
+        if (response.status === 404 || response.status === 405) {
+          useDirect = true;
         }
-
-        // On static hosting like GitHub Pages, call Gemini directly with visitor's key
-        if (useDirect) {
-          if (!effectiveVisitorKey) {
-            throw new Error("AUTH_REQUIRED: Connect your Gemini API key to begin generation.");
-          }
-          return await this.processFrameDirect(cleanBase64, mimeType, options, effectiveVisitorKey, modelToUse);
-        }
-
-        if (!response!.ok) {
-          const errData = await response!.json().catch(() => ({ error: response!.statusText }));
-          const errorMessage = errData.error || `HTTP ${response!.status}: Decay request failed`;
-          
-          if (response!.status === 429 || errorMessage.includes('429') || errorMessage.includes('quota')) {
-            attempt++;
-            if (attempt > maxRetries) {
-              throw new Error(`MAX_RETRIES_EXCEEDED: ${errorMessage}`);
-            }
-            const backoffTime = Math.pow(2, attempt) * 2000 + Math.random() * 500;
-            console.warn(`RATE_LIMIT_HIT: Retrying frame in ${Math.round(backoffTime)}ms (Attempt ${attempt}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, backoffTime));
-            continue;
-          }
-
-          throw new Error(errorMessage);
-        }
-
-        const data = await response!.json();
-        if (data.image) {
-          return this.base64ToBlob(data.image, data.mimeType || 'image/png');
-        }
-
-        throw new Error("MODEL_ERROR: Fragment manifestation failed.");
-
-      } catch (error: any) {
-        if (attempt >= maxRetries) {
-          console.error("API_FAILURE:", error);
-          throw error;
-        }
-
-        if (error.message?.includes('429') || error.message?.includes('quota')) {
-          attempt++;
-          const backoffTime = Math.pow(2, attempt) * 2000 + Math.random() * 500;
-          await new Promise(resolve => setTimeout(resolve, backoffTime));
-          continue;
-        }
-
-        console.error("API_FAILURE:", error);
-        throw error;
+      } catch (_) {
+        useDirect = true;
       }
     }
 
-    return null;
+    // On static hosting like GitHub Pages, call Gemini directly with visitor's key
+    if (useDirect) {
+      if (!effectiveVisitorKey) {
+        throw new Error("AUTH_REQUIRED: Connect your Gemini API key to begin generation.");
+      }
+      return await this.processFrameDirect(cleanBase64, mimeType, options, effectiveVisitorKey, modelToUse);
+    }
+
+    if (!response!.ok) {
+      const errData = await response!.json().catch(() => ({ error: response!.statusText }));
+      const errorMessage = errData.error || `HTTP ${response!.status}: Decay request failed`;
+      
+      if (response!.status === 429 || errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+        throw new Error("RATE_LIMIT_429: Google quota saturated. Entering cooldown...");
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    const data = await response!.json();
+    if (data.image) {
+      return this.base64ToBlob(data.image, data.mimeType || 'image/png');
+    }
+
+    throw new Error("MODEL_ERROR: Fragment manifestation failed.");
   }
 
   private async processFrameDirect(
@@ -382,6 +420,9 @@ export class GeminiDecayService {
       const errMsg = err?.message || String(err);
       console.error(`Direct invocation of ${targetModelConfig.id} failed:`, err);
 
+      if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED')) {
+        throw new Error("RATE_LIMIT_429: Google quota saturated. Entering cooldown...");
+      }
       if (errMsg.includes('billing') || errMsg.includes('BILLING') || errMsg.includes('Billing')) {
         throw new Error(`BILLING_REQUIRED: ${targetModelConfig.name} requires an active Google Cloud billing account. Switch to ${AVAILABLE_MODELS['gemini-2.5-flash-image'].name} for the free tier.`);
       }

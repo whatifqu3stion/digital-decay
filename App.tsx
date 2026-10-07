@@ -647,74 +647,98 @@ const App: React.FC = () => {
       }
 
       const isHero = i === TOTAL_FRAMES;
-      
       if (isHero) {
         addLog(`FINAL_ITERATION: STABILIZING HERO ARTIFACT...`, 'warning');
       }
 
-      try {
-        const startTime = Date.now();
-        const activeModel = decayService.current.getSelectedModel();
-        
-        const nextBlob = await decayService.current.processFrame(
-          currentBlob,
-          isHero,
-          { 
-            injections, 
-            customPrompt, 
-            overrideCoreDirective,
-            decayRate,
-            modelId: selectedModelId
-          }
-        );
+      const activeModel = decayService.current.getSelectedModel();
+      let frameSuccess = false;
+      let rateLimitRetries = 0;
 
-        if (nextBlob) {
-          const latency = Date.now() - startTime;
-          currentBlob = nextBlob;
+      while (!frameSuccess && !stopSignal.current) {
+        // Enforce sliding-window rate pacing based on active model tier
+        await decayService.current.getPacer().waitForSlot(activeModel, (secRemaining) => {
+          addLog(`⏳ PACING NEURAL CORE: Waiting ${secRemaining}s for quota window to clear...`, 'warning');
+        });
+
+        if (stopSignal.current) break;
+
+        try {
+          const startTime = Date.now();
+          const nextBlob = await decayService.current.processFrame(
+            currentBlob,
+            isHero,
+            { 
+              injections, 
+              customPrompt, 
+              overrideCoreDirective,
+              decayRate,
+              modelId: selectedModelId
+            }
+          );
+
+          if (nextBlob) {
+            const latency = Date.now() - startTime;
+            currentBlob = nextBlob;
+            
+            // Persist Frame
+            const key = isHero ? 'hero' : `frame_${i}`;
+            await DBService.saveImage(key, nextBlob);
+            if (isHero) {
+              await DBService.saveImage(`frame_${i}`, nextBlob);
+            }
+            
+            // Persist State
+            await DBService.saveState('appStatus', {
+                currentFrame: i,
+                completed: isHero,
+                hasHero: isHero
+            });
+
+            // Update UI
+            const newUrl = URL.createObjectURL(nextBlob);
+            if (workingImageUrl && workingImageUrl !== sourceImageUrl) URL.revokeObjectURL(workingImageUrl); // Clean up old
+            setWorkingImageUrl(newUrl);
+            setCurrentFrame(i);
+            setViewingFrame(i); // Sync view with progress
+
+            playAudio(isHero ? 'success' : 'process');
+
+            if (isHero) {
+              setHeroImageUrl(newUrl);
+              addLog(`> RESP: ${activeModel.shortLabel} | ${latency}ms | ${(nextBlob.size/1024).toFixed(1)}KB`, 'success');
+              addLog(`ARTIFACT_69_STABILIZED. SEQUENCE COMPLETE.`, 'success');
+            } else {
+               // Technical logs
+               addLog(`> REQ: ${activeModel.id} | TEMP: ${actualTemp} | FRAME: ${String(i).padStart(2, '0')}`, 'info');
+               addLog(`> RESP: OK | LATENCY: ${latency}ms | SIZE: ${(nextBlob.size/1024).toFixed(1)}KB`, 'success');
+            }
+
+            frameSuccess = true;
+          }
+        } catch (err: any) {
+          const errorMessage = err?.message || 'UNKNOWN_SIGNAL_LOSS';
           
-          // Persist Frame
-          const key = isHero ? 'hero' : `frame_${i}`;
-          await DBService.saveImage(key, nextBlob);
-          if (isHero) {
-            await DBService.saveImage(`frame_${i}`, nextBlob);
+          // Check if rate limited (429 or quota)
+          if (errorMessage.includes('RATE_LIMIT_429') || errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+            rateLimitRetries++;
+            playAudio('error');
+            const cooldownSec = Math.min(30, 15 + rateLimitRetries * 5);
+            addLog(`⚠️ RATE_LIMIT_429: Google quota saturated at Gen_${String(i).padStart(2, '0')}.`, 'warning');
+            addLog(`[ ⏳ AUTO-COOLING: Pausing ${cooldownSec}s to replenish quota... ]`, 'warning');
+            decayService.current.getPacer().recordCooldown(cooldownSec);
+            await new Promise(r => setTimeout(r, cooldownSec * 1000));
+            // Retries the exact same frame seamlessly without aborting
+            continue;
           }
-          
-          // Persist State
-          await DBService.saveState('appStatus', {
-              currentFrame: i,
-              completed: isHero,
-              hasHero: isHero
-          });
 
-          // Update UI
-          const newUrl = URL.createObjectURL(nextBlob);
-          if (workingImageUrl && workingImageUrl !== sourceImageUrl) URL.revokeObjectURL(workingImageUrl); // Clean up old
-          setWorkingImageUrl(newUrl);
-          setCurrentFrame(i);
-          setViewingFrame(i); // Sync view with progress
-
-          playAudio(isHero ? 'success' : 'process');
-
-          if (isHero) {
-            setHeroImageUrl(newUrl);
-            addLog(`> RESP: ${activeModel.shortLabel} | ${latency}ms | ${(nextBlob.size/1024).toFixed(1)}KB`, 'success');
-            addLog(`ARTIFACT_69_STABILIZED. SEQUENCE COMPLETE.`, 'success');
-          } else {
-             // Technical logs
-             addLog(`> REQ: ${activeModel.id} | TEMP: ${actualTemp} | FRAME: ${String(i).padStart(2, '0')}`, 'info');
-             addLog(`> RESP: OK | LATENCY: ${latency}ms | SIZE: ${(nextBlob.size/1024).toFixed(1)}KB`, 'success');
-          }
+          // Fatal errors (e.g. invalid key, billing required, model not found)
+          playAudio('error');
+          addLog(`ERR: ${errorMessage}`, 'error');
+          setAppState(AppState.ERROR);
+          return;
         }
-      } catch (err: any) {
-        playAudio('error');
-        const errorMessage = err?.message || 'UNKNOWN_SIGNAL_LOSS';
-        addLog(`ERR: ${errorMessage}`, 'error');
-        setAppState(AppState.ERROR);
-        break;
       }
-      
-      // Delay to avoid rate limits
-      await new Promise(r => setTimeout(r, 1500));
     }
 
     if (!stopSignal.current && appState !== AppState.ERROR) {

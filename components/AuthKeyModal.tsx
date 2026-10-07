@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { playAudio } from '../utils/audio';
 import { parseAndValidateGeminiKey } from '../utils/keyUtils';
-import { AVAILABLE_MODELS, ModelTierConfig } from '../services/geminiService';
+import { AVAILABLE_MODELS } from '../services/geminiService';
 
 interface AuthKeyModalProps {
   isOpen: boolean;
@@ -23,24 +23,22 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
   onSelectModel
 }) => {
   const [remember, setRemember] = useState(true);
+  const [inputKey, setInputKey] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [isReading, setIsReading] = useState(false);
   const [activeModel, setActiveModel] = useState<string>(selectedModelId);
 
   if (!isOpen) return null;
 
   const processKey = (rawText: string) => {
+    setErrorMsg(null);
     const result = parseAndValidateGeminiKey(rawText);
     if (!result.isValidFormat || !result.key) {
-      throw new Error(result.error || "Invalid key format. Please check your copied key.");
+      throw new Error(result.error || "Invalid key. Ensure your Gemini key starts with AIzaSy.");
     }
 
     playAudio('success');
-    const msg = result.isStandardGeminiFormat 
-      ? "✓ Verified standard Gemini key format (AIzaSy...)" 
-      : "✓ Key format accepted";
-    setSuccessMsg(msg);
+    setSuccessMsg("✓ Key verified & attached");
 
     if (onSelectModel) {
       onSelectModel(activeModel);
@@ -48,217 +46,198 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
 
     setTimeout(() => {
       onSuccess(result.key!, remember);
-    }, 350);
+    }, 250);
   };
 
   const handleClipboardPaste = async () => {
     setErrorMsg(null);
     setSuccessMsg(null);
-    setIsReading(true);
     playAudio('click');
 
     try {
       if (!navigator.clipboard || !navigator.clipboard.readText) {
-        throw new Error("Clipboard API blocked by browser. Use the manual paste button below.");
+        throw new Error("Clipboard access blocked by browser. Paste directly into the box below.");
       }
 
       const text = await navigator.clipboard.readText();
+      setInputKey(text.trim());
       processKey(text);
     } catch (err: any) {
-      console.warn("Clipboard read failed:", err);
       playAudio('error');
-      setErrorMsg(err?.message || "Could not read clipboard. Please ensure clipboard permission is allowed.");
-    } finally {
-      setIsReading(false);
+      setErrorMsg(err?.message || "Could not read clipboard. Please paste manually into the input below.");
     }
   };
 
-  const handleManualPrompt = () => {
-    setErrorMsg(null);
-    setSuccessMsg(null);
-    playAudio('click');
-
+  const handleManualSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputKey.trim()) {
+      setErrorMsg("Please enter an API key.");
+      return;
+    }
     try {
-      const input = window.prompt("Paste your Gemini API key (starts with AIzaSy):");
-      if (input === null) return;
-      if (!input.trim()) {
-        throw new Error("No key was entered.");
-      }
-      processKey(input);
+      processKey(inputKey);
     } catch (err: any) {
       playAudio('error');
       setErrorMsg(err?.message || "Invalid key.");
     }
   };
 
-  const handleModelChange = (modelId: string) => {
+  const handleModelSelect = (id: string) => {
     playAudio('click');
-    setActiveModel(modelId);
+    setActiveModel(id);
     if (onSelectModel) {
-      onSelectModel(modelId);
+      onSelectModel(id);
     }
   };
 
+  const model25 = AVAILABLE_MODELS['gemini-2.5-flash-image'];
+  const model31 = AVAILABLE_MODELS['gemini-3.1-flash-image'];
+
   return (
-    <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="max-w-md w-full border-2 border-[#00ffd5] bg-black p-6 shadow-[0_0_40px_rgba(0,255,213,0.25)] relative font-mono max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+      <div className="max-w-md w-full border border-[#00ffd5] bg-black p-5 shadow-[0_0_30px_rgba(0,255,213,0.2)] font-mono text-xs">
         
         {/* Header */}
-        <div className="flex justify-between items-center border-b border-[#00ffd5]/30 pb-3 mb-4">
+        <div className="flex justify-between items-center border-b border-[#00ffd5]/20 pb-3 mb-4">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 bg-[#00ffd5] animate-pulse"></span>
-            <span className="text-base font-bold text-[#00ffd5] tracking-[0.2em] uppercase">CONNECT API KEY & MODEL</span>
+            <span className="w-2 h-2 bg-[#00ffd5] animate-pulse"></span>
+            <span className="text-sm font-bold text-[#00ffd5] tracking-[0.2em] uppercase">API Key & Model Setup</span>
           </div>
           <button 
             onClick={() => { playAudio('click'); onClose(); }}
-            className="text-xs text-[#e5e5e5] hover:text-[#ff007f] tracking-widest uppercase transition-colors cursor-pointer"
+            className="text-[#e5e5e5]/60 hover:text-white uppercase transition-colors cursor-pointer text-[11px]"
           >
             [CLOSE]
           </button>
         </div>
 
-        {/* Content */}
-        <div className="space-y-4 text-xs">
-          {/* Active Key Status if already connected */}
-          {currentKey && (
-            <div className="p-2.5 border border-[#00ffd5]/40 bg-[#00ffd5]/10 flex items-center justify-between gap-2 animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#00ffd5]"></span>
-                <span className="text-[#00ffd5] text-[11px] font-bold">
-                  ACTIVE KEY: {currentKey.slice(0, 6)}...{currentKey.slice(-4)}
-                </span>
-              </div>
-              {onPurge && (
-                <button
-                  onClick={() => {
-                    playAudio('click');
-                    onPurge();
-                  }}
-                  className="text-[10px] text-[#ff007f] hover:underline uppercase tracking-wider cursor-pointer font-bold"
-                  title="Remove saved key from this device"
-                >
-                  [DISCONNECT]
-                </button>
-              )}
+        <div className="space-y-4">
+          
+          {/* Section 1: Model Selection */}
+          <div>
+            <div className="text-[10px] font-bold text-[#00ffd5] uppercase tracking-wider mb-2">
+              1. Choose Engine
             </div>
-          )}
-
-          {/* Model Selection Section with Clear Notes */}
-          <div className="space-y-2">
-            <div className="font-bold text-[#00ffd5] tracking-wider uppercase flex justify-between items-center">
-              <span>SELECT NEURAL ENGINE TIER</span>
-              <span className="text-[10px] text-[#e5e5e5]/50 font-normal">BYOK ARCHITECTURE</span>
-            </div>
-
-            <div className="space-y-2">
-              {Object.values(AVAILABLE_MODELS).map((model: ModelTierConfig) => {
-                const isSelected = activeModel === model.id;
-                return (
-                  <div
-                    key={model.id}
-                    onClick={() => handleModelChange(model.id)}
-                    className={`p-3 border transition-all cursor-pointer ${
-                      isSelected 
-                        ? 'border-[#00ffd5] bg-[#00ffd5]/15 shadow-[0_0_15px_rgba(0,255,213,0.2)]' 
-                        : 'border-[#00ffd5]/30 bg-black hover:border-[#00ffd5]/60 hover:bg-[#00ffd5]/5'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start gap-2 mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-[#00ffd5] animate-pulse' : 'bg-[#e5e5e5]/40'}`}></span>
-                        <span className={`font-bold text-xs uppercase ${isSelected ? 'text-[#00ffd5]' : 'text-white'}`}>
-                          {model.name}
-                        </span>
-                      </div>
-                      <span className={`text-[9px] px-1.5 py-0.5 border font-bold tracking-wider uppercase ${
-                        model.isFreeTier 
-                          ? 'border-[#00ffd5] text-[#00ffd5] bg-black' 
-                          : 'border-purple-400 text-purple-300 bg-purple-950/40'
-                      }`}>
-                        {model.badge}
-                      </span>
-                    </div>
-
-                    <div className="text-[11px] text-[#e5e5e5]/90 pl-4 space-y-0.5">
-                      <p><span className="text-[#00ffd5]/80 font-bold">Quota:</span> {model.dailyQuotaInfo}</p>
-                      <p className="text-[10px] text-[#e5e5e5]/70"><span className="text-[#ff007f] font-bold">Billing:</span> {model.billingRequirement}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Action 1: Link to Get Free Key */}
-          <div className="p-3 border border-[#00ffd5]/20 bg-[#00ffd5]/5 flex items-center justify-between gap-3">
-            <div>
-              <div className="font-bold text-[#00ffd5] tracking-wider uppercase">GET A FREE API KEY</div>
-              <div className="text-[11px] opacity-70 mt-0.5">Google AI Studio • Instant • Zero Credit Card</div>
-            </div>
-            <a 
-              href="https://aistudio.google.com/app/apikey" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              onClick={() => playAudio('click')}
-              className="px-3 py-1.5 border border-[#00ffd5] text-[#00ffd5] hover:bg-[#00ffd5] hover:text-black font-bold tracking-widest text-[11px] uppercase transition-all whitespace-nowrap shadow-[0_0_10px_rgba(0,255,213,0.15)]"
-            >
-              GET KEY ↗
-            </a>
-          </div>
-
-          {/* Action 2: One-Click Paste & Fallback */}
-          <div className="space-y-2">
-            <div className="font-bold text-[#00ffd5] tracking-wider uppercase">ATTACH YOUR KEY</div>
-            <button
-              onClick={handleClipboardPaste}
-              disabled={isReading}
-              className="w-full py-3 px-4 border-2 border-[#00ffd5] text-black bg-[#00ffd5] hover:bg-white hover:border-white font-bold tracking-widest text-sm uppercase transition-all shadow-[0_0_20px_rgba(0,255,213,0.3)] disabled:opacity-50 cursor-pointer"
-            >
-              {isReading ? "[ READING CLIPBOARD... ]" : "[ 📋 PASTE FROM CLIPBOARD ]"}
-            </button>
-
-            {/* Manual fallback prompt if clipboard blocked or preferred */}
-            <div className="flex justify-between items-center text-[10px] text-[#e5e5e5]/60 pt-0.5">
-              <span>Auto-extracts raw key even if copied with URL</span>
-              <button 
-                onClick={handleManualPrompt}
-                className="text-[#00ffd5] hover:underline cursor-pointer uppercase font-bold"
+            <div className="grid grid-cols-2 gap-2">
+              {/* Free Tier Card */}
+              <button
+                type="button"
+                onClick={() => handleModelSelect(model25.id)}
+                className={`p-2.5 text-left border transition-all cursor-pointer ${
+                  activeModel === model25.id
+                    ? 'border-[#00ffd5] bg-[#00ffd5]/10 text-white shadow-[0_0_12px_rgba(0,255,213,0.15)]'
+                    : 'border-[#00ffd5]/20 bg-black/50 text-[#e5e5e5]/60 hover:border-[#00ffd5]/50'
+                }`}
               >
-                [ ⌨️ Paste Manually ]
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="font-bold text-[11px] text-[#00ffd5]">2.5 Flash</span>
+                  <span className="text-[9px] bg-[#00ffd5]/20 text-[#00ffd5] px-1 py-0.5 rounded font-bold">FREE</span>
+                </div>
+                <p className="text-[10px] text-[#e5e5e5]/80 leading-tight">~500 requests/day</p>
+                <p className="text-[9px] text-[#00ffd5]/60 mt-1 font-semibold">No credit card needed</p>
+              </button>
+
+              {/* Paid Tier Card */}
+              <button
+                type="button"
+                onClick={() => handleModelSelect(model31.id)}
+                className={`p-2.5 text-left border transition-all cursor-pointer ${
+                  activeModel === model31.id
+                    ? 'border-[#00ffd5] bg-[#00ffd5]/10 text-white shadow-[0_0_12px_rgba(0,255,213,0.15)]'
+                    : 'border-[#00ffd5]/20 bg-black/50 text-[#e5e5e5]/60 hover:border-[#00ffd5]/50'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="font-bold text-[11px] text-white">3.1 Flash</span>
+                  <span className="text-[9px] border border-[#e5e5e5]/30 text-[#e5e5e5]/70 px-1 py-0.5 rounded">PAID</span>
+                </div>
+                <p className="text-[10px] text-[#e5e5e5]/80 leading-tight">High resolution</p>
+                <p className="text-[9px] text-[#e5e5e5]/50 mt-1">Requires Google Cloud billing</p>
               </button>
             </div>
           </div>
 
-          {/* Remember on this device toggle */}
-          <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-[#e5e5e5]/80 hover:text-white pt-1">
-            <input 
-              type="checkbox" 
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              className="accent-[#00ffd5] cursor-pointer"
-            />
-            <span>Remember key & selected model on this device</span>
-          </label>
+          {/* Section 2: Key Input */}
+          <div>
+            <div className="flex justify-between items-baseline mb-2">
+              <span className="text-[10px] font-bold text-[#00ffd5] uppercase tracking-wider">
+                2. Enter Gemini API Key
+              </span>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => playAudio('click')}
+                className="text-[10px] text-[#00ffd5] hover:underline"
+              >
+                Get free key ↗
+              </a>
+            </div>
 
-          {/* Instant Validation Success Feedback */}
+            <form onSubmit={handleManualSubmit} className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={inputKey}
+                  onChange={(e) => setInputKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="flex-grow bg-black border border-[#00ffd5]/40 text-white px-3 py-2 text-xs focus:outline-none focus:border-[#00ffd5] font-mono tracking-wider"
+                />
+                <button
+                  type="submit"
+                  disabled={!inputKey.trim()}
+                  className="px-3 py-2 border border-[#00ffd5] bg-[#00ffd5] text-black font-bold uppercase tracking-wider text-xs hover:bg-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Save
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleClipboardPaste}
+                className="w-full py-2 border border-[#00ffd5]/40 hover:border-[#00ffd5] hover:bg-[#00ffd5]/5 text-[#00ffd5] font-bold uppercase tracking-wider transition-colors cursor-pointer text-[11px]"
+              >
+                📋 Paste from Clipboard
+              </button>
+            </form>
+          </div>
+
+          {/* Feedback Messages */}
           {successMsg && (
-            <div className="p-2.5 border border-[#00ffd5] bg-[#00ffd5]/20 text-[#00ffd5] text-[11px] font-bold leading-tight animate-in fade-in duration-150">
+            <div className="p-2 border border-[#00ffd5] bg-[#00ffd5]/10 text-[#00ffd5] text-[11px] font-bold">
               {successMsg}
             </div>
           )}
 
-          {/* Error Message */}
           {errorMsg && (
-            <div className="p-2.5 border border-[#ff007f] bg-[#ff007f]/10 text-[#ff007f] text-[11px] leading-tight animate-in fade-in duration-150">
+            <div className="p-2 border border-[#ff007f] bg-[#ff007f]/10 text-[#ff007f] text-[11px]">
               {errorMsg}
             </div>
           )}
 
-          {/* Manual URL Hint */}
-          <div className="pt-2.5 border-t border-[#00ffd5]/20 text-xs text-[#e5e5e5] leading-relaxed bg-[#00ffd5]/5 p-2.5 border border-[#00ffd5]/20">
-            <span className="font-bold text-[#00ffd5] uppercase tracking-wider">Alternative:</span>{' '}
-            Append <code className="text-[#00ffd5] bg-black px-1.5 py-0.5 border border-[#00ffd5]/40 font-mono font-bold select-all">?gemini_api_key=YOUR_KEY</code> to the URL and reload.
+          {/* Active Key Status & Remember Option */}
+          <div className="pt-2 border-t border-[#00ffd5]/10 flex items-center justify-between text-[11px] text-[#e5e5e5]/70">
+            <label className="flex items-center gap-2 cursor-pointer select-none hover:text-white">
+              <input 
+                type="checkbox" 
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="accent-[#00ffd5] cursor-pointer"
+              />
+              <span>Remember on this device</span>
+            </label>
+
+            {currentKey && onPurge && (
+              <button
+                type="button"
+                onClick={() => { playAudio('click'); onPurge(); }}
+                className="text-[#ff007f] hover:underline uppercase text-[10px] font-bold cursor-pointer"
+              >
+                Disconnect Key
+              </button>
+            )}
           </div>
+
         </div>
 
       </div>
