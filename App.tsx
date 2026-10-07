@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AppState, LogEntry, DecayConfig } from './types';
-import { GeminiDecayService, BASE_ROT_PROMPT } from './services/geminiService';
+import { GeminiDecayService, BASE_ROT_PROMPT, DEFAULT_MODEL_ID } from './services/geminiService';
 import { DBService } from './services/db';
 import GIF from 'gif.js.optimized';
 import { playAudio, setGlobalMuted } from './utils/audio';
@@ -25,6 +25,7 @@ const PROMPT_DESCRIPTIONS: Record<string, string> = {
 };
 
 const App: React.FC = () => {
+  const decayService = useRef(new GeminiDecayService());
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   
@@ -58,7 +59,15 @@ const App: React.FC = () => {
   const [addScanlines, setAddScanlines] = useState(false);
   const [addDataMoshing, setAddDataMoshing] = useState(false);
   const [addVhsDistortion, setAddVhsDistortion] = useState(false);
-  const [selectedModelId, setSelectedModelId] = useState<string>(() => decayService.current.getSelectedModel().id);
+  const [selectedModelId, setSelectedModelId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('decay_selected_model');
+        if (saved) return saved;
+      } catch (_) {}
+    }
+    return DEFAULT_MODEL_ID;
+  });
 
   // Use Object URLs for display (strings)
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
@@ -90,7 +99,6 @@ const App: React.FC = () => {
   const lastBlipTime = useRef(0);
 
   const terminalRef = useRef<HTMLDivElement>(null);
-  const decayService = useRef(new GeminiDecayService());
   const sessionRestoredRef = useRef(false);
 
   const addLog = useCallback((message: string, type: LogEntry['type'] = 'info') => {
