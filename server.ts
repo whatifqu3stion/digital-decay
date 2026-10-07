@@ -52,8 +52,7 @@ app.post('/api/decay', async (req, res) => {
       }
     });
 
-    // Keep model as requested: gemini-2.5-flash-image
-    const modelName = 'gemini-2.5-flash-image';
+    const modelName = 'gemini-3.1-flash-image';
 
     const decayRate = options?.decayRate ?? 1.0;
     let temperature = (decayRate - 0.5) * 1.8 + 0.1;

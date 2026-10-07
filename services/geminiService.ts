@@ -259,35 +259,61 @@ export class GeminiDecayService {
       apiKey
     });
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              data: cleanBase64,
-              mimeType
-            }
-          },
-          {
-            text: prompt
-          }
-        ]
-      },
-      config: {
-        temperature,
-        imageConfig: {
-          aspectRatio: '1:1'
-        }
-      }
-    });
+    const candidateModels = ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image'];
+    let lastError: any = null;
 
-    if (response.candidates && response.candidates[0]?.content?.parts) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData?.data) {
-          return this.base64ToBlob(part.inlineData.data, part.inlineData.mimeType || 'image/png');
+    for (const model of candidateModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: {
+            parts: [
+              {
+                inlineData: {
+                  data: cleanBase64,
+                  mimeType
+                }
+              },
+              {
+                text: prompt
+              }
+            ]
+          },
+          config: {
+            temperature,
+            imageConfig: {
+              aspectRatio: '1:1'
+            }
+          }
+        });
+
+        if (response.candidates && response.candidates[0]?.content?.parts) {
+          for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData?.data) {
+              return this.base64ToBlob(part.inlineData.data, part.inlineData.mimeType || 'image/png');
+            }
+          }
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Model ${model} invocation failed:`, err);
+        const errMsg = err?.message || String(err);
+        // If billing / auth / permission error, trying the next model won't help
+        if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('403') || errMsg.includes('billing') || errMsg.includes('BILLING')) {
+          break;
         }
       }
+    }
+
+    if (lastError) {
+      const msg = lastError?.message || String(lastError);
+      if (msg.includes('billing') || msg.includes('BILLING') || msg.includes('Billing') || msg.includes('quota') || msg.includes('Quota')) {
+        throw new Error("BILLING_REQUIRED: Gemini image generation models require a billing-enabled Google Cloud / AI Studio project.");
+      }
+      if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
+        throw new Error("API_KEY_INVALID: The provided Gemini API key was rejected by Google.");
+      }
+      throw new Error(`MODEL_ERROR: ${msg}`);
     }
 
     throw new Error("MODEL_ERROR: Fragment manifestation failed from direct API.");
