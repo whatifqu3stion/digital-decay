@@ -4,7 +4,6 @@ import { GeminiDecayService, BASE_ROT_PROMPT } from './services/geminiService';
 import { DBService } from './services/db';
 import GIF from 'gif.js.optimized';
 import { playAudio, setGlobalMuted } from './utils/audio';
-import { processProceduralFrame } from './utils/proceduralDecay';
 import { OnboardingModal } from './components/OnboardingModal';
 import { StandbyGraphic } from './components/StandbyGraphic';
 import { AuthKeyModal } from './components/AuthKeyModal';
@@ -59,7 +58,7 @@ const App: React.FC = () => {
   const [addScanlines, setAddScanlines] = useState(false);
   const [addDataMoshing, setAddDataMoshing] = useState(false);
   const [addVhsDistortion, setAddVhsDistortion] = useState(false);
-  const [useDspEngine, setUseDspEngine] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState<string>(() => decayService.current.getSelectedModel().id);
 
   // Use Object URLs for display (strings)
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
@@ -647,44 +646,19 @@ const App: React.FC = () => {
 
       try {
         const startTime = Date.now();
-        let nextBlob: Blob | null = null;
-        let isDsp = useDspEngine;
-
-        if (!isDsp) {
-          try {
-            nextBlob = await decayService.current.processFrame(
-              currentBlob,
-              isHero,
-              { 
-                injections, 
-                customPrompt, 
-                overrideCoreDirective,
-                decayRate
-              }
-            );
-          } catch (apiErr: any) {
-            const apiMsg = apiErr?.message || String(apiErr);
-            console.warn("API invocation failed, engaging DSP engine:", apiMsg);
-            
-            // Check if billing, quota, or model restriction
-            if (apiMsg.includes('BILLING_REQUIRED') || apiMsg.includes('quota') || apiMsg.includes('403') || apiMsg.includes('MODEL_ERROR') || apiMsg.includes('API_KEY_INVALID')) {
-              addLog(`API NOTICE: ${apiMsg.substring(0, 85)}`, 'warning');
-              addLog(`SYSTEM: Seamless fallback to client-side DSP Glitch Engine engaged`, 'info');
-              setUseDspEngine(true);
-              isDsp = true;
-            } else {
-              throw apiErr;
-            }
-          }
-        }
-
-        if (isDsp || !nextBlob) {
-          nextBlob = await processProceduralFrame(currentBlob, {
-            injections,
+        const activeModel = decayService.current.getSelectedModel();
+        
+        const nextBlob = await decayService.current.processFrame(
+          currentBlob,
+          isHero,
+          { 
+            injections, 
+            customPrompt, 
+            overrideCoreDirective,
             decayRate,
-            frameIndex: i
-          });
-        }
+            modelId: selectedModelId
+          }
+        );
 
         if (nextBlob) {
           const latency = Date.now() - startTime;
@@ -715,11 +689,11 @@ const App: React.FC = () => {
 
           if (isHero) {
             setHeroImageUrl(newUrl);
-            addLog(`> RESP: ${isDsp ? 'CLIENT_DSP_SYNTH' : 'gemini-3.1-flash-image'} | ${latency}ms | ${(nextBlob.size/1024).toFixed(1)}KB`, 'success');
+            addLog(`> RESP: ${activeModel.shortLabel} | ${latency}ms | ${(nextBlob.size/1024).toFixed(1)}KB`, 'success');
             addLog(`ARTIFACT_69_STABILIZED. SEQUENCE COMPLETE.`, 'success');
           } else {
              // Technical logs
-             addLog(`> REQ: ${isDsp ? 'CLIENT_DSP_SYNTH' : 'gemini-3.1-flash-image'} | TEMP: ${actualTemp} | FRAME: ${String(i).padStart(2, '0')}`, 'info');
+             addLog(`> REQ: ${activeModel.id} | TEMP: ${actualTemp} | FRAME: ${String(i).padStart(2, '0')}`, 'info');
              addLog(`> RESP: OK | LATENCY: ${latency}ms | SIZE: ${(nextBlob.size/1024).toFixed(1)}KB`, 'success');
           }
         }
@@ -732,7 +706,7 @@ const App: React.FC = () => {
       }
       
       // Delay to avoid rate limits
-      await new Promise(r => setTimeout(r, useDspEngine ? 80 : 1500));
+      await new Promise(r => setTimeout(r, 1500));
     }
 
     if (!stopSignal.current && appState !== AppState.ERROR) {
@@ -1087,6 +1061,12 @@ const App: React.FC = () => {
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         currentKey={decayService.current.getVisitorApiKey()}
+        selectedModelId={selectedModelId}
+        onSelectModel={(modelId) => {
+          setSelectedModelId(modelId);
+          decayService.current.setSelectedModel(modelId);
+          addLog(`MODEL_SELECT: Active engine set to ${decayService.current.getSelectedModel().name}`, 'info');
+        }}
         onPurge={() => {
           decayService.current.setVisitorApiKey(null);
           setKeyAttached(false);
@@ -1124,22 +1104,20 @@ const App: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
-          {/* Engine Mode Toggle */}
+          {/* Active Model Indicator Button */}
           <button
             onClick={() => {
               playAudio('click');
-              const nextMode = !useDspEngine;
-              setUseDspEngine(nextMode);
-              addLog(`ENGINE_SWITCH: Switched to ${nextMode ? 'LOCAL_DSP_SYNTH (No API quota)' : 'GEMINI_3.1_FLASH_IMAGE (Cloud AI)'}`, 'info');
+              setShowAuthModal(true);
             }}
             className={`border px-2.5 py-1 text-xs font-mono tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
-              useDspEngine
-                ? 'border-purple-400 text-purple-300 bg-purple-950/40 hover:bg-purple-900/60 shadow-[0_0_10px_rgba(168,85,247,0.3)] font-bold'
-                : 'border-[#00ffd5]/60 text-[#00ffd5] bg-[#00ffd5]/5 hover:bg-[#00ffd5]/20'
+              selectedModelId === 'gemini-2.5-flash-image'
+                ? 'border-[#00ffd5] text-[#00ffd5] bg-[#00ffd5]/10 hover:bg-[#00ffd5] hover:text-black font-bold'
+                : 'border-purple-400 text-purple-300 bg-purple-950/40 hover:bg-purple-900/60 shadow-[0_0_10px_rgba(168,85,247,0.3)] font-bold'
             }`}
-            title={useDspEngine ? "Local DSP Engine Active (zero quota/billing required). Click to switch to Gemini Cloud AI." : "Gemini Cloud AI Active. Click to switch to Local DSP Engine."}
+            title={`Active Engine: ${decayService.current.getSelectedModel().name}. Click to switch model or manage key.`}
           >
-            <span>{useDspEngine ? '🎛️ ENGINE: LOCAL DSP' : '⚡ ENGINE: GEMINI AI'}</span>
+            <span>{selectedModelId === 'gemini-2.5-flash-image' ? '⚡ 2.5 FLASH [FREE TIER]' : '💎 3.1 FLASH [PAID TIER]'}</span>
           </button>
 
           {/* Key Status Button */}
@@ -1470,7 +1448,7 @@ const App: React.FC = () => {
             <div className="absolute inset-0 border border-[#00ffd5] flex flex-col bg-black overflow-hidden">
                 <div className="bg-[#00ffd5] text-black px-3 py-2 text-xs font-bold flex justify-between items-center tracking-[0.2em] uppercase shrink-0">
                     <span>Debug Console / Logs</span>
-                    <span className="opacity-70 font-mono">GEMINI_2.5_FLASH</span>
+                    <span className="opacity-70 font-mono">{decayService.current.getSelectedModel().shortLabel.toUpperCase()}</span>
                 </div>
                 <div 
                     ref={terminalRef}

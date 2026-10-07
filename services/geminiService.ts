@@ -2,19 +2,69 @@ import { GoogleGenAI } from '@google/genai';
 
 export const BASE_ROT_PROMPT = "Preserve the shapes and basic colors of the previous iteration.";
 
+// ============================================================================
+// GEMINI IMAGE MODEL SPECIFICATIONS & TIER DEFINITIONS
+// ============================================================================
+// Google AI Studio offers two primary models for native multimodal image output:
+// 1. FREE TIER: Gemini 2.5 Flash Image has a real free allotment of ~500 requests/day
+//    via any standard AI Studio API key without requiring a credit card or billing account.
+//    NOTE: It strictly requires responseModalities: ['TEXT', 'IMAGE'] to return image parts.
+// 2. PAID TIER: Gemini 3.1 Flash Image is the newer Nano Banana 2 architecture.
+//    It requires pay-as-you-go Google Cloud billing enabled on the project ($0.045/image).
+// ============================================================================
+
+export interface ModelTierConfig {
+  id: string;
+  name: string;
+  shortLabel: string;
+  badge: string;
+  isFreeTier: boolean;
+  dailyQuotaInfo: string;
+  billingRequirement: string;
+  responseModalities?: ('TEXT' | 'IMAGE')[];
+}
+
+export const AVAILABLE_MODELS: Record<string, ModelTierConfig> = {
+  'gemini-2.5-flash-image': {
+    id: 'gemini-2.5-flash-image',
+    name: 'Gemini 2.5 Flash Image',
+    shortLabel: '2.5 Flash (Free)',
+    badge: 'FREE TIER // NO CC REQUIRED',
+    isFreeTier: true,
+    dailyQuotaInfo: '~500 free generations per day',
+    billingRequirement: 'No credit card or billing account needed. Works with standard free AI Studio keys.',
+    responseModalities: ['TEXT', 'IMAGE']
+  },
+  'gemini-3.1-flash-image': {
+    id: 'gemini-3.1-flash-image',
+    name: 'Gemini 3.1 Flash Image',
+    shortLabel: '3.1 Flash (Paid)',
+    badge: 'PAID TIER // BILLING LINKED',
+    isFreeTier: false,
+    dailyQuotaInfo: 'Unlimited pay-as-you-go quota',
+    billingRequirement: 'Requires Google Cloud billing enabled on your AI Studio project ($0.045/image).',
+    responseModalities: ['TEXT', 'IMAGE']
+  }
+};
+
+export const DEFAULT_MODEL_ID = 'gemini-2.5-flash-image';
+
 export interface DecayFrameOptions {
   injections: string[];
   customPrompt?: string;
   overrideCoreDirective?: boolean;
   decayRate: number; // Entropy Coefficient
   visitorApiKey?: string;
+  modelId?: string;
 }
 
 export class GeminiDecayService {
   private visitorApiKey: string | null = null;
+  private selectedModelId: string = DEFAULT_MODEL_ID;
 
   constructor() {
     this.initVisitorKey();
+    this.initSelectedModel();
   }
 
   private initVisitorKey() {
@@ -49,6 +99,31 @@ export class GeminiDecayService {
         }
       }
     } catch (_) {}
+  }
+
+  private initSelectedModel() {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedModel = localStorage.getItem('decay_selected_model');
+      if (savedModel && AVAILABLE_MODELS[savedModel]) {
+        this.selectedModelId = savedModel;
+      }
+    } catch (_) {}
+  }
+
+  getSelectedModel(): ModelTierConfig {
+    return AVAILABLE_MODELS[this.selectedModelId] || AVAILABLE_MODELS[DEFAULT_MODEL_ID];
+  }
+
+  setSelectedModel(modelId: string) {
+    if (AVAILABLE_MODELS[modelId]) {
+      this.selectedModelId = modelId;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('decay_selected_model', modelId);
+        } catch (_) {}
+      }
+    }
   }
 
   getVisitorApiKey(): string | null {
@@ -109,6 +184,7 @@ export class GeminiDecayService {
     }
 
     const effectiveVisitorKey = options.visitorApiKey || this.getVisitorApiKey();
+    const modelToUse = options.modelId || this.selectedModelId;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
@@ -125,7 +201,7 @@ export class GeminiDecayService {
     );
 
     let attempt = 0;
-    const maxRetries = 5;
+    const maxRetries = 3;
 
     while (attempt <= maxRetries) {
       try {
@@ -140,6 +216,7 @@ export class GeminiDecayService {
               body: JSON.stringify({
                 image: cleanBase64,
                 mimeType,
+                model: modelToUse,
                 options: {
                   injections: options.injections,
                   customPrompt: options.customPrompt,
@@ -163,7 +240,7 @@ export class GeminiDecayService {
           if (!effectiveVisitorKey) {
             throw new Error("AUTH_REQUIRED: Connect your Gemini API key to begin generation.");
           }
-          return await this.processFrameDirect(cleanBase64, mimeType, options, effectiveVisitorKey);
+          return await this.processFrameDirect(cleanBase64, mimeType, options, effectiveVisitorKey, modelToUse);
         }
 
         if (!response!.ok) {
@@ -216,7 +293,8 @@ export class GeminiDecayService {
     cleanBase64: string,
     mimeType: string,
     options: DecayFrameOptions,
-    apiKey: string
+    apiKey: string,
+    modelId: string
   ): Promise<Blob | null> {
     const INJECTION_MAP: Record<string, string> = {
       CHROMATIC_ABERRATION: ' Introduce extremely subtle, barely perceptible chromatic aberration.',
@@ -259,64 +337,64 @@ export class GeminiDecayService {
       apiKey
     });
 
-    const candidateModels = ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image'];
-    let lastError: any = null;
+    const targetModelConfig = AVAILABLE_MODELS[modelId] || AVAILABLE_MODELS[DEFAULT_MODEL_ID];
 
-    for (const model of candidateModels) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: {
-            parts: [
-              {
-                inlineData: {
-                  data: cleanBase64,
-                  mimeType
-                }
-              },
-              {
-                text: prompt
+    try {
+      const configObj: any = {
+        temperature,
+        imageConfig: {
+          aspectRatio: '1:1'
+        }
+      };
+
+      // Crucial: gemini-2.5-flash-image requires responseModalities: ['TEXT', 'IMAGE']
+      // to return synthesized image data instead of text descriptions
+      if (targetModelConfig.responseModalities) {
+        configObj.responseModalities = targetModelConfig.responseModalities;
+      }
+
+      const response = await ai.models.generateContent({
+        model: targetModelConfig.id,
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: cleanBase64,
+                mimeType
               }
-            ]
-          },
-          config: {
-            temperature,
-            imageConfig: {
-              aspectRatio: '1:1'
+            },
+            {
+              text: prompt
             }
-          }
-        });
+          ]
+        },
+        config: configObj
+      });
 
-        if (response.candidates && response.candidates[0]?.content?.parts) {
-          for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData?.data) {
-              return this.base64ToBlob(part.inlineData.data, part.inlineData.mimeType || 'image/png');
-            }
+      if (response.candidates && response.candidates[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
+          if (part.inlineData?.data) {
+            return this.base64ToBlob(part.inlineData.data, part.inlineData.mimeType || 'image/png');
           }
         }
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`Model ${model} invocation failed:`, err);
-        const errMsg = err?.message || String(err);
-        // If billing / auth / permission error, trying the next model won't help
-        if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('403') || errMsg.includes('billing') || errMsg.includes('BILLING')) {
-          break;
-        }
       }
-    }
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      console.error(`Direct invocation of ${targetModelConfig.id} failed:`, err);
 
-    if (lastError) {
-      const msg = lastError?.message || String(lastError);
-      if (msg.includes('billing') || msg.includes('BILLING') || msg.includes('Billing') || msg.includes('quota') || msg.includes('Quota')) {
-        throw new Error("BILLING_REQUIRED: Gemini image generation models require a billing-enabled Google Cloud / AI Studio project.");
+      if (errMsg.includes('billing') || errMsg.includes('BILLING') || errMsg.includes('Billing')) {
+        throw new Error(`BILLING_REQUIRED: ${targetModelConfig.name} requires an active Google Cloud billing account. Switch to ${AVAILABLE_MODELS['gemini-2.5-flash-image'].name} for the free tier.`);
       }
-      if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
+      if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid')) {
         throw new Error("API_KEY_INVALID: The provided Gemini API key was rejected by Google.");
       }
-      throw new Error(`MODEL_ERROR: ${msg}`);
+      if (errMsg.includes('404') || errMsg.includes('not found')) {
+        throw new Error(`MODEL_NOT_FOUND: Model ${targetModelConfig.id} could not be resolved by Google.`);
+      }
+      throw new Error(`MODEL_ERROR: ${errMsg}`);
     }
 
-    throw new Error("MODEL_ERROR: Fragment manifestation failed from direct API.");
+    throw new Error(`MODEL_ERROR: ${targetModelConfig.name} completed request without returning image parts.`);
   }
 
   private base64ToBlob(base64: string, mimeType: string = 'image/png'): Blob {

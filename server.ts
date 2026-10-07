@@ -52,7 +52,7 @@ app.post('/api/decay', async (req, res) => {
       }
     });
 
-    const modelName = 'gemini-3.1-flash-image';
+    const modelName = req.body?.model || 'gemini-2.5-flash-image';
 
     const decayRate = options?.decayRate ?? 1.0;
     let temperature = (decayRate - 0.5) * 1.8 + 0.1;
@@ -85,6 +85,17 @@ app.post('/api/decay', async (req, res) => {
       prompt += ` ${options.customPrompt}`;
     }
 
+    const configObj: any = {
+      temperature,
+      imageConfig: {
+        aspectRatio: '1:1'
+      }
+    };
+
+    if (modelName === 'gemini-2.5-flash-image') {
+      configObj.responseModalities = ['TEXT', 'IMAGE'];
+    }
+
     const response = await ai.models.generateContent({
       model: modelName,
       contents: {
@@ -100,12 +111,7 @@ app.post('/api/decay', async (req, res) => {
           }
         ]
       },
-      config: {
-        temperature,
-        imageConfig: {
-          aspectRatio: '1:1'
-        }
-      }
+      config: configObj
     });
 
     if (response.candidates && response.candidates[0]?.content?.parts) {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { playAudio } from '../utils/audio';
 import { parseAndValidateGeminiKey } from '../utils/keyUtils';
+import { AVAILABLE_MODELS, ModelTierConfig } from '../services/geminiService';
 
 interface AuthKeyModalProps {
   isOpen: boolean;
@@ -8,6 +9,8 @@ interface AuthKeyModalProps {
   onSuccess: (key: string, remember: boolean) => void;
   currentKey?: string | null;
   onPurge?: () => void;
+  selectedModelId?: string;
+  onSelectModel?: (modelId: string) => void;
 }
 
 export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({ 
@@ -15,13 +18,15 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
   onClose, 
   onSuccess,
   currentKey,
-  onPurge
+  onPurge,
+  selectedModelId = 'gemini-2.5-flash-image',
+  onSelectModel
 }) => {
   const [remember, setRemember] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isReading, setIsReading] = useState(false);
-  const [showManualFallback, setShowManualFallback] = useState(false);
+  const [activeModel, setActiveModel] = useState<string>(selectedModelId);
 
   if (!isOpen) return null;
 
@@ -37,6 +42,10 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
       : "✓ Key format accepted";
     setSuccessMsg(msg);
 
+    if (onSelectModel) {
+      onSelectModel(activeModel);
+    }
+
     setTimeout(() => {
       onSuccess(result.key!, remember);
     }, 350);
@@ -50,7 +59,6 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
 
     try {
       if (!navigator.clipboard || !navigator.clipboard.readText) {
-        setShowManualFallback(true);
         throw new Error("Clipboard API blocked by browser. Use the manual paste button below.");
       }
 
@@ -59,7 +67,6 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
     } catch (err: any) {
       console.warn("Clipboard read failed:", err);
       playAudio('error');
-      setShowManualFallback(true);
       setErrorMsg(err?.message || "Could not read clipboard. Please ensure clipboard permission is allowed.");
     } finally {
       setIsReading(false);
@@ -73,7 +80,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
 
     try {
       const input = window.prompt("Paste your Gemini API key (starts with AIzaSy):");
-      if (input === null) return; // User cancelled
+      if (input === null) return;
       if (!input.trim()) {
         throw new Error("No key was entered.");
       }
@@ -84,15 +91,23 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
     }
   };
 
+  const handleModelChange = (modelId: string) => {
+    playAudio('click');
+    setActiveModel(modelId);
+    if (onSelectModel) {
+      onSelectModel(modelId);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="max-w-md w-full border-2 border-[#00ffd5] bg-black p-6 shadow-[0_0_40px_rgba(0,255,213,0.25)] relative font-mono">
+      <div className="max-w-md w-full border-2 border-[#00ffd5] bg-black p-6 shadow-[0_0_40px_rgba(0,255,213,0.25)] relative font-mono max-h-[90vh] overflow-y-auto">
         
         {/* Header */}
         <div className="flex justify-between items-center border-b border-[#00ffd5]/30 pb-3 mb-4">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 bg-[#00ffd5] animate-pulse"></span>
-            <span className="text-base font-bold text-[#00ffd5] tracking-[0.2em] uppercase">CONNECT API KEY</span>
+            <span className="text-base font-bold text-[#00ffd5] tracking-[0.2em] uppercase">CONNECT API KEY & MODEL</span>
           </div>
           <button 
             onClick={() => { playAudio('click'); onClose(); }}
@@ -110,7 +125,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[#00ffd5]"></span>
                 <span className="text-[#00ffd5] text-[11px] font-bold">
-                  ACTIVE: {currentKey.slice(0, 6)}...{currentKey.slice(-4)}
+                  ACTIVE KEY: {currentKey.slice(0, 6)}...{currentKey.slice(-4)}
                 </span>
               </div>
               {onPurge && (
@@ -119,7 +134,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
                     playAudio('click');
                     onPurge();
                   }}
-                  className="text-[10px] text-[#ff007f] hover:underline uppercase tracking-wider cursor-pointer"
+                  className="text-[10px] text-[#ff007f] hover:underline uppercase tracking-wider cursor-pointer font-bold"
                   title="Remove saved key from this device"
                 >
                   [DISCONNECT]
@@ -128,15 +143,57 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
             </div>
           )}
 
-          <p className="text-[#e5e5e5] leading-relaxed">
-            A free Gemini API key is required to execute recursive decay generations on your quota.
-          </p>
+          {/* Model Selection Section with Clear Notes */}
+          <div className="space-y-2">
+            <div className="font-bold text-[#00ffd5] tracking-wider uppercase flex justify-between items-center">
+              <span>SELECT NEURAL ENGINE TIER</span>
+              <span className="text-[10px] text-[#e5e5e5]/50 font-normal">BYOK ARCHITECTURE</span>
+            </div>
+
+            <div className="space-y-2">
+              {Object.values(AVAILABLE_MODELS).map((model: ModelTierConfig) => {
+                const isSelected = activeModel === model.id;
+                return (
+                  <div
+                    key={model.id}
+                    onClick={() => handleModelChange(model.id)}
+                    className={`p-3 border transition-all cursor-pointer ${
+                      isSelected 
+                        ? 'border-[#00ffd5] bg-[#00ffd5]/15 shadow-[0_0_15px_rgba(0,255,213,0.2)]' 
+                        : 'border-[#00ffd5]/30 bg-black hover:border-[#00ffd5]/60 hover:bg-[#00ffd5]/5'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start gap-2 mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-[#00ffd5] animate-pulse' : 'bg-[#e5e5e5]/40'}`}></span>
+                        <span className={`font-bold text-xs uppercase ${isSelected ? 'text-[#00ffd5]' : 'text-white'}`}>
+                          {model.name}
+                        </span>
+                      </div>
+                      <span className={`text-[9px] px-1.5 py-0.5 border font-bold tracking-wider uppercase ${
+                        model.isFreeTier 
+                          ? 'border-[#00ffd5] text-[#00ffd5] bg-black' 
+                          : 'border-purple-400 text-purple-300 bg-purple-950/40'
+                      }`}>
+                        {model.badge}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-[#e5e5e5]/90 pl-4 space-y-0.5">
+                      <p><span className="text-[#00ffd5]/80 font-bold">Quota:</span> {model.dailyQuotaInfo}</p>
+                      <p className="text-[10px] text-[#e5e5e5]/70"><span className="text-[#ff007f] font-bold">Billing:</span> {model.billingRequirement}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Action 1: Link to Get Free Key */}
           <div className="p-3 border border-[#00ffd5]/20 bg-[#00ffd5]/5 flex items-center justify-between gap-3">
             <div>
-              <div className="font-bold text-[#00ffd5] tracking-wider uppercase">1. GET YOUR FREE KEY</div>
-              <div className="text-[11px] opacity-70 mt-0.5">Instant creation via Google AI Studio</div>
+              <div className="font-bold text-[#00ffd5] tracking-wider uppercase">GET A FREE API KEY</div>
+              <div className="text-[11px] opacity-70 mt-0.5">Google AI Studio • Instant • Zero Credit Card</div>
             </div>
             <a 
               href="https://aistudio.google.com/app/apikey" 
@@ -151,7 +208,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
 
           {/* Action 2: One-Click Paste & Fallback */}
           <div className="space-y-2">
-            <div className="font-bold text-[#00ffd5] tracking-wider uppercase">2. ATTACH COPIED KEY</div>
+            <div className="font-bold text-[#00ffd5] tracking-wider uppercase">ATTACH YOUR KEY</div>
             <button
               onClick={handleClipboardPaste}
               disabled={isReading}
@@ -180,7 +237,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
               onChange={(e) => setRemember(e.target.checked)}
               className="accent-[#00ffd5] cursor-pointer"
             />
-            <span>Remember key on this device (Local Storage)</span>
+            <span>Remember key & selected model on this device</span>
           </label>
 
           {/* Instant Validation Success Feedback */}
@@ -198,9 +255,9 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
           )}
 
           {/* Manual URL Hint */}
-          <div className="pt-3 border-t border-[#00ffd5]/20 text-xs text-[#e5e5e5] leading-relaxed bg-[#00ffd5]/5 p-2.5 border border-[#00ffd5]/20">
+          <div className="pt-2.5 border-t border-[#00ffd5]/20 text-xs text-[#e5e5e5] leading-relaxed bg-[#00ffd5]/5 p-2.5 border border-[#00ffd5]/20">
             <span className="font-bold text-[#00ffd5] uppercase tracking-wider">Alternative:</span>{' '}
-            Append <code className="text-[#00ffd5] bg-black px-1.5 py-0.5 border border-[#00ffd5]/40 font-mono font-bold select-all">?gemini_api_key=YOUR_KEY</code> to the page URL and reload.
+            Append <code className="text-[#00ffd5] bg-black px-1.5 py-0.5 border border-[#00ffd5]/40 font-mono font-bold select-all">?gemini_api_key=YOUR_KEY</code> to the URL and reload.
           </div>
         </div>
 
