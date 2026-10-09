@@ -1,147 +1,100 @@
-# 🫠 DIGITAL_DECAY // Recursive Visual Entropy Engine
+# Digital Decay
 
-> *"I am sitting in a neural network, looking at a picture whose likeness I will ask the model to re-imagine again and again, until the original features of the image are completely destroyed, and what remains is the latent resonance of the machine itself."*  
-> — Adapted from Alvin Lucier (*I Am Sitting in a Room*, 1969)
+**What happens when AI keeps recreating its own last image?**
 
-[![GitHub Pages Deployment](https://img.shields.io/badge/Deployment-GitHub%20Pages-00ffd5?style=flat-square&logo=github)](https://whatifqu3stion.github.io/digital-decay/)
-[![Model](https://img.shields.io/badge/Model-Gemini%202.5%20%2F%203.1%20Flash-ff007f?style=flat-square)](https://ai.google.dev/)
-[![Architecture](https://img.shields.io/badge/Architecture-100%25%20Client--Side%20BYOK-00ffd5?style=flat-square)]()
-[![Status](https://img.shields.io/badge/Status-Operational-00ffd5?style=flat-square)]()
+Digital Decay is a creative experiment in repeated AI image generation. Start with an image, ask Gemini to recreate it, then feed that result back in. Over 69 generations, small changes can accumulate until the image takes on a different character.
 
----
+[Open the app](https://whatifqu3stion.github.io/digital-decay/) · [Explore the code](services/geminiService.ts) · [Key handling and security review](docs/security-review.md)
 
-## 👁 The Conceptual Exploration
+## An example
 
-### 1. Digital Generational Loss & Neural Drift
-In analog media, copying a cassette tape, VHS recording, or physical photocopy creates tangible degeneration: tape hiss, magnetic bleed, color skew, and toner artifacts. The degradation is physical, mechanical, and predictable.
+![Source image on the left; frame 69 on the right, with the same broad composition transformed into bold outlines and patterned surfaces.](docs/examples/decay-comparison-frame-69.png)
 
-In traditional digital computing, copies are mathematically exact ($1:1$, lossless). But **Generative Multimodal Models (LMMs) break this permanence.** 
+*Source → frame 69. The person, plate and general arrangement remain recognizable, while realistic textures give way to outlines, patterns and a more illustrative style. This is one example, not a prediction of every run.*
 
-When an artificial intelligence is asked to observe an image and recreate what it sees, it is **never copying pixels**—it is translating visual input into an internal web of semantic tokens, passing through a probabilistic latent space, and synthesizing a new dream of what it believes was there.
+The [supplied source GIF](docs/examples/source-still.gif) is also included. It contains one frame, so it is a still reference rather than a recording of the transformation.
 
-**DIGITAL_DECAY** subjects this process to recursive generational decay:
-* **The Machine as an Unreliable Narrator:** When Frame $N$ becomes the input tensor for Frame $N+1$, the model's subtle misinterpretations do not disappear. They become the foundational truth for the next generation.
-* **The Attractor States of Machine Memory:** Human faces gradually melt into ancient stone statues, alien masks, or biomechanical visages. Modern cityscapes dissolve into crystalline overgrown ruins or circuitry. These are not random errors—they are the **latent attractor basins** of the foundation model's training data.
-* **Why 69 Generations?** The number 69 forms an ouroboros—a recursive feedback loop where the tail of the sequence continually feeds into its mouth, compounding microscopic discrepancies until the subject undergoes total visual metamorphosis into a stabilized **"Hero Artifact."**
+## The exploration
 
----
+Copying a digital file can preserve every bit. Asking an image model to recreate it is a different operation: the model generates a new image, and that image can introduce changes. Here, each change becomes part of the next input. The model sees its latest output, rather than returning to the original each time.
 
-## ⚙️ Technical Mechanics & Architecture
+Think of a visual game of telephone. What survives repeated retelling? What gets simplified, exaggerated or replaced? Can the composition remain familiar while the style changes completely?
 
-```
-[ Source Image ] (Upload / Optical Sensor)
-       │
-       ▼
- ┌─────────────┐
- │ Preprocess  │ ──> (FIT / CROP Scaling + Optional 128px Bitcrush)
- └─────────────┘
-       │
-       ▼
- ┌─────────────┐ <──────────────────────────────────────────┐
- │ Generation  │                                            │
- │   Cycle N   │ ──> Prompt Directives + Entropy + Mutators │
- └─────────────┘                                            │
-       │                                                    │
-       ▼ (Gemini Image API Call)                            │
- ┌─────────────┐                                            │
- │ Frame N+1   │ ──> Persist to IndexedDB                   │
- └─────────────┘ ──> Update Visual Scrubber & UI            │
-       │                                                    │
-       ├────[ If N < 69 ] ──────────────────────────────────┘
-       │
-       ▼ [ If N == 69 ]
- ┌──────────────────────────────────────────────────────────┐
- │ 🏆 HERO ARTIFACT STABILIZED                              │
- │ Export: Hi-Res Still / 69-Frame GIF / Timeline Inspection │
- └──────────────────────────────────────────────────────────┘
-```
+The idea echoes Alvin Lucier's [*I am sitting in a room*](https://www.moma.org/explore/inside_out/2015/01/20/collecting-alvin-luciers-i-am-sitting-in-a-room/), in which recorded speech is repeatedly played and recorded again in the same room. Digital Decay explores feedback through image generation instead of sound and room acoustics.
 
-### 1. The Recursive Loop ($I_{N+1} = \mathcal{M}(I_N, \mathcal{P}, \mathcal{T}, \mathcal{I})$)
-1. **Source Latching:** The user supplies a source subject via direct file upload or live camera sensor feed.
-2. **Aspect Framing:**
-   * **FIT:** Preserves the entire source image with black pillarbox/letterbox borders.
-   * **CROP:** Center-crops to a pure $1:1$ square aspect ratio.
-3. **Recursive Re-Ingestion:** The output PNG of generation $N$ is converted to a base64 payload and fed into Gemini as the visual prompt for generation $N+1$.
-4. **Core Directive:** `"Preserve the shapes and basic colors of the previous iteration."` This tension—forcing the model to hold onto the original image while its inherent stochasticity pulls it elsewhere—is what fuels the visual decay.
+“Decay” is a creative framing. Some results become more orderly or decorative. The images alone cannot establish what is happening inside the model, reveal particular training examples, or prove that it converges toward a stable destination. The 69-generation endpoint is a limit set by the app, not a scientific threshold.
 
-### 2. Parametric Entropy Coefficient ($\mathcal{T}$)
-The application maps the user-controlled **Entropy** slider directly to Gemini's generative temperature ($0.1$ to $1.9$):
-* **Low Entropy ($0.1 - 0.7$):** Strict visual replication. Suppresses creative divergence; the model struggles to reproduce exact details, resulting in painterly vector smoothing and subtle analog drift.
-* **Balanced Entropy ($0.8 - 1.2$):** Classic generational decay. Organic structures warp, eyes wander, edges dissolve into surreal geometries over $20 - 40$ frames.
-* **High Entropy ($1.3 - 1.9$):** Chaos and rapid mutation. The model aggressively hallucinates new objects, dreamlike textures, and radical color shifts within the first few frames.
+## How it works
 
-### 3. Procedural Degradation Mutators
-Users can toggle procedural aesthetic mutators that inject synthetic noise into the prompt directive:
-* **Bitcrush (128px):** Downsamples the initial canvas to a blocky $128 \times 128$ grid before feeding to the model, forcing early semantic pixelation.
-* **Chromatic Aberration:** Induces R/G/B optical channel misalignment and prism edge fringe.
-* **JPEG Compression:** Recreates 8×8 DCT blocking and high-frequency ringing artifacts.
-* **Scanline Ghosting:** Simulates phosphor decay, line doubling, and cathode-ray tube bleed.
-* **Datamoshing:** Simulates compressed video codec frame dropouts, motion vector tears, and macroblock smears.
-* **VHS Distortion:** Introduces tape tracking flutter, luma noise, and magnetic color bleed.
+1. **Choose an image.** Upload a file or capture one with the camera. Fit it within a square or crop it to fill the square.
+2. **Choose how to reinterpret it.** Adjust the controls or add an instruction.
+3. **Generate and repeat.** Send the current image and prompt to Gemini. Save the returned image and use it as the next input.
+4. **Inspect the changes.** Compare a frame against the source, scrub through the sequence, or halt and resume.
+5. **Export.** Save a still, a side-by-side comparison, or a GIF of the available frames.
 
-### 4. Sliding-Window Rate Pacer (`SlidingWindowPacer`)
-Google enforces rate limits across its image generation endpoints:
-* **Adaptive Rolling Window:** The built-in pacer maintains a timestamp queue of the last requests within a 60-second sliding window, pacing calls so you never exceed Google's quota limits.
-* **Visual Core Cooling:** If the quota window fills during high-speed runs, the terminal displays an automated countdown (`[ ⏳ COOLING NEURAL CORE: Resuming in 8s... ]`) and smoothly continues.
-* **Zero-Abort Resilience:** If Google returns a transient 429 rate limit mid-sequence, the loop pauses, auto-cools, and **automatically retries the exact same frame**, ensuring you never lose your progress or have your session aborted prematurely.
+The default instruction is deliberately simple:
 
----
+> Preserve the shapes and basic colors of the previous iteration.
 
-## 🔑 API Key & Google Cloud Billing Requirement
+That leaves room to explore how much can change while the basic arrangement remains recognizable.
 
-To protect hosts from compute charges and enable direct client-side generation, **DIGITAL_DECAY operates on a 100% Bring Your Own Key (BYOK) architecture**:
+| Control | What it actually changes |
+| --- | --- |
+| **Entropy** | Maps the slider's 0.5–1.5 range to a model temperature of 0.1–1.9 and changes the prompt from stricter copying to looser interpretation. It is a creative control, not a measurement of entropy or a guaranteed rate of change. |
+| **Bitcrush** | Reduces the starting image to 128 × 128 pixels before the first generation. |
+| **VHS, JPEG, chromatic aberration and other effects** | Adds requests for those visual styles to the prompt. These are model interpretations, not actual codec corruption or optical processing. |
+| **Custom prompt** | Adds an instruction, or replaces the default directive when override is enabled. |
 
-> **Important Note on Gemini Image Models:**  
-> Google allows developers to create Gemini API keys for free in Google AI Studio. However, Google’s backend assigns **0 quota (`limit: 0`)** for native image generation models (`gemini-2.5-flash-image`, `gemini-3.1-flash-image`) unless your AI Studio project has an active **Google Cloud Billing account linked**.  
-> * Image generations cost approximately **$0.039 to $0.045 per image** (around ~$2.70 for an entire 69-frame sequence).
-> * To unlock your key from `limit: 0`, visit [Google AI Studio Plan Information](https://aistudio.google.com/app/plan_information) and click **"Set up billing"**.
+For a more useful comparison, begin separate runs with the same source and change one control at a time. Keep the model and prompt consistent. Even then, generated results can differ between runs.
 
-### Privacy & Security Safeguards
-* **Device-Only Memory:** Your API key is stored strictly in your browser's private `localStorage` or `sessionStorage`. It is **never** sent to an intermediate database, third-party server, or analytics pipeline.
-* **Address Bar Scrubbing:** If you supply a key via URL query parameter (`?gemini_api_key=AIzaSy...`), the app immediately scrubs the key from the browser address bar on boot using `window.history.replaceState` to prevent shoulder-surfing, bookmark leakage, or history persistence.
+## Try it
 
----
+1. Open the [live app](https://whatifqu3stion.github.io/digital-decay/).
+2. Connect your own [Gemini API key](https://aistudio.google.com/app/apikey) through the key dialog.
+3. Check your project's billing, image quota and [current Google pricing](https://ai.google.dev/gemini-api/docs/pricing). Generation is billed to your account; a full run requests 69 new images, with input and output charges depending on the model.
+4. Load an image and start with a short run before committing to the full sequence.
 
-## 🖥 User Interface & Features
+The default is Gemini 3.1 Flash Image. The older 2.5 option is labeled legacy because Google's documentation marks it deprecated. Availability and quotas depend on Google and your project.
 
-* **Interactive Split-Screen Comparator:** Click and drag the glowing scanline divider across the canvas to compare the original Frame $0$ against any decayed generation in real time.
-* **History Time-Travel Scrubber:** Scrub through all generated frames with instant cached playback powered by IndexedDB.
-* **Animated GIF Export:** Compiles all 69 frames into a downloadable loop directly in the browser via client-side Web Workers.
-* **Synthesized Retro Audio Engine:** Web Audio API sound design recreating CRT capacitor hums, stepper motor seek chirps, and vintage BIOS POST confirmations.
-* **Emergency Halt & Resume:** Pause the sequence at any generation, adjust entropy or mutators, and resume seamlessly.
+## Design and implementation
 
----
+The retro terminal presents the process as an experiment in progress. The useful part is being able to inspect the steps, not just admire the last image.
 
-## 🚀 Live Demo & Deployment
+- **React + TypeScript** manage the controls, comparison view and generation sequence.
+- **Google's GenAI SDK** sends each image and instruction to Gemini.
+- **IndexedDB**, the browser's local database, stores frames and session state for later inspection. Browser storage can be cleared or evicted, so export anything you want to keep.
+- **Request pacing** spaces calls out and retries errors classified as temporary rate limits. It cannot guarantee quota availability; billing, daily limits and other failures can still stop a run.
+- **Canvas and GIF workers** prepare exports in the browser. The source plus 69 generations can produce up to 70 frames.
 
-* **Live GitHub Pages URL:**  
-  👉 **[https://whatifqu3stion.github.io/digital-decay/](https://whatifqu3stion.github.io/digital-decay/)**
+On GitHub Pages, generation requests go directly from the browser to Google. Local development uses the included Express server, which forwards the visitor's key and image to Google. Neither route uses a host-funded fallback key.
 
-### Deploying Your Own Fork to GitHub Pages
-1. Fork or clone this repository.
-2. In your repository settings, go to **Settings > Pages**.
-3. Under **Build and deployment > Source**, choose **GitHub Actions**.
-4. Push any commit to `main`—the workflow (`.github/workflows/deploy.yml`) will automatically build and publish the application.
+### API key privacy
 
----
+Keys are saved for the tab session by default. “Remember on this device” optionally stores one in `localStorage`. Both are readable by JavaScript running on the same origin; they are not encrypted vaults. Other apps on the same GitHub Pages origin share that storage boundary, and the page also loads third-party resources.
 
-## 🛠 Local Development
+Use **Disconnect Key** to clear the app's saved key. Never include a key in a URL, screenshot or commit. Legacy key URLs are no longer accepted; removing a parameter from the address bar cannot undo earlier exposure. Images and prompts used for generation are sent to Google under its service terms.
+
+## Run locally
+
+Use Node.js 20 or newer:
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/whatifqu3stion/digital-decay.git
 cd digital-decay
-
-# 2. Install dependencies
-npm install
-
-# 3. Start local development server
+npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000` to launch the terminal.
+Open `http://localhost:3000`. Enter your key in the app; no `.env` key is needed.
 
----
+```bash
+npm run lint   # TypeScript checks
+npm run build  # Static production bundle
+npm test       # Key handling regression checks
+```
 
-## 📜 License
-MIT License. Created for creative generative research, digital entropy experimentation, and visual art exploration.
+For a fork, choose **Settings → Pages → Source → GitHub Actions**. The included workflow deploys pushes to `main` without a Gemini repository secret.
+
+## License
+
+The code is licensed under [MIT](LICENSE). Example images illustrate the experiment; the code license does not grant rights to third-party likenesses or underlying source material.

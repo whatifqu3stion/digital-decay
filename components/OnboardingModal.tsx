@@ -26,7 +26,7 @@ const STEPS = [
   },
   {
     title: "4. GEMINI KEY & BILLING",
-    content: "Connect your Google Gemini API key to run generations directly on your account.\n\nNote: Google requires linked Google Cloud billing in AI Studio for image models (~$0.04/image; unbilled keys have 0 image quota).",
+    content: "Connect your Google Gemini API key to run generations directly on your account.\n\nNote: Google requires linked Google Cloud billing in AI Studio for image models (check current pricing and your project quota).",
     action: "ENTER_TERMINAL"
   }
 ];
@@ -121,11 +121,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     }
 
     playAudio('success');
-    onSetApiKey?.(result.key, true);
+    onSetApiKey?.(result.key, false);
     setAttachedKey(result.key);
     const msg = result.isStandardGeminiFormat
-      ? "✓ Verified standard Gemini key (AIzaSy...) — Saved to device!"
-      : "✓ Key format accepted — Saved to device!";
+      ? "✓ Standard key format accepted — Saved for this tab session."
+      : "✓ Key format accepted — Saved for this tab session.";
     setClipboardStatus({ message: msg, type: 'success' });
   };
 
@@ -294,8 +294,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                         </div>
                       )}
                       <div className="text-xs text-[#e5e5e5] pt-2 border-t border-[#00ffd5]/20 leading-relaxed">
-                        <span className="font-bold text-[#00ffd5] uppercase tracking-wider">Alternative:</span>{' '}
-                        Append <code className="text-[#00ffd5] bg-black px-1.5 py-0.5 border border-[#00ffd5]/40 font-mono font-bold select-all">?gemini_api_key=YOUR_KEY</code> to the page URL.
+                        Paste your key here, never in a URL. It is saved for this tab session; persistent storage is optional in API Key setup.
                       </div>
                     </div>
                   )}

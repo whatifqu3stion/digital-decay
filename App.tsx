@@ -60,15 +60,9 @@ const App: React.FC = () => {
   const [addScanlines, setAddScanlines] = useState(false);
   const [addDataMoshing, setAddDataMoshing] = useState(false);
   const [addVhsDistortion, setAddVhsDistortion] = useState(false);
-  const [selectedModelId, setSelectedModelId] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('decay_selected_model');
-        if (saved) return saved;
-      } catch (_) {}
-    }
-    return DEFAULT_MODEL_ID;
-  });
+  const [selectedModelId, setSelectedModelId] = useState<string>(() =>
+    decayService.current.getSelectedModel().id
+  );
 
   // Use Object URLs for display (strings)
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);

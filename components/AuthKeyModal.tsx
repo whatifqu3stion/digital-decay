@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { playAudio } from '../utils/audio';
 import { parseAndValidateGeminiKey } from '../utils/keyUtils';
-import { AVAILABLE_MODELS } from '../services/geminiService';
+import { AVAILABLE_MODELS, DEFAULT_MODEL_ID } from '../services/geminiService';
 
 interface AuthKeyModalProps {
   isOpen: boolean;
@@ -20,11 +20,11 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
   onSuccess,
   currentKey,
   onPurge,
-  selectedModelId = 'gemini-2.5-flash-image',
+  selectedModelId = DEFAULT_MODEL_ID,
   onSelectModel,
   quotaNotice
 }) => {
-  const [remember, setRemember] = useState(true);
+  const [remember, setRemember] = useState(false);
   const [inputKey, setInputKey] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
     }
 
     playAudio('success');
-    setSuccessMsg("✓ Key verified & attached");
+    setSuccessMsg("✓ Key attached; Google validates it when you generate");
 
     if (onSelectModel && activeModel !== selectedModelId) {
       onSelectModel(activeModel);
@@ -48,6 +48,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
 
     setTimeout(() => {
       onSuccess(result.key!, remember);
+      setInputKey('');
     }, 250);
   };
 
@@ -140,7 +141,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="font-bold text-[11px] text-[#00ffd5]">2.5 Flash</span>
-                  <span className="text-[9px] border border-[#00ffd5]/40 text-[#00ffd5] px-1 py-0.5 rounded">STANDARD</span>
+                  <span className="text-[9px] border border-[#00ffd5]/40 text-[#00ffd5] px-1 py-0.5 rounded">LEGACY</span>
                 </div>
                 <p className="text-[10px] text-[#e5e5e5]/80 leading-tight">Standard resolution</p>
                 <p className="text-[9px] text-[#e5e5e5]/50 mt-1 font-semibold">~$0.039 / generation</p>
@@ -161,7 +162,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
                   <span className="text-[9px] border border-[#00ffd5]/40 text-[#00ffd5] px-1 py-0.5 rounded">HIGH-RES</span>
                 </div>
                 <p className="text-[10px] text-[#e5e5e5]/80 leading-tight">Fast generation</p>
-                <p className="text-[9px] text-[#e5e5e5]/50 mt-1 font-semibold">~$0.045 / generation</p>
+                <p className="text-[9px] text-[#e5e5e5]/50 mt-1 font-semibold">Paid; see current Google pricing</p>
               </button>
             </div>
           </div>
@@ -254,7 +255,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
                 onChange={(e) => setRemember(e.target.checked)}
                 className="accent-[#00ffd5] cursor-pointer"
               />
-              <span>Remember on this device</span>
+              <span>Remember on this device (shared browser storage)</span>
             </label>
 
             {currentKey && onPurge && (

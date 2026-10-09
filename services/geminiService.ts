@@ -1,19 +1,10 @@
 import { GoogleGenAI } from '@google/genai';
+import { redactApiError } from '../utils/keyUtils';
 
 export const BASE_ROT_PROMPT = "Preserve the shapes and basic colors of the previous iteration.";
 
-// ============================================================================
-// GEMINI IMAGE MODEL SPECIFICATIONS & TIER DEFINITIONS
-// ============================================================================
-// Google AI Studio offers two primary models for native multimodal image output:
-// 1. FREE TIER: Gemini 2.5 Flash Image has a real free allotment of ~500 requests/day
-//    via any standard AI Studio API key without requiring a credit card or billing account.
-//    NOTE: It strictly requires responseModalities: ['TEXT', 'IMAGE'] to return image parts.
-//    Rate limit: ~10 RPM ceiling (safe pacing target: 8 requests per 60s window).
-// 2. PAID TIER: Gemini 3.1 Flash Image is the newer Nano Banana 2 architecture.
-//    It requires pay-as-you-go Google Cloud billing enabled on the project ($0.045/image).
-//    Rate limit: High throughput, minimal pacing needed.
-// ============================================================================
+// Pacing targets are local defaults, not guarantees of project quota.
+// Check Google AI Studio for model availability, billing and limits.
 
 export interface ModelTierConfig {
   id: string;
@@ -32,7 +23,7 @@ export interface ModelTierConfig {
 export const AVAILABLE_MODELS: Record<string, ModelTierConfig> = {
   'gemini-2.5-flash-image': {
     id: 'gemini-2.5-flash-image',
-    name: 'Gemini 2.5 Flash Image',
+    name: 'Gemini 2.5 Flash Image (legacy)',
     shortLabel: '2.5 Flash',
     badge: 'STANDARD // BILLING LINKED',
     isFreeTier: false,
@@ -49,8 +40,8 @@ export const AVAILABLE_MODELS: Record<string, ModelTierConfig> = {
     shortLabel: '3.1 Flash',
     badge: 'NANO BANANA 2 // BILLING LINKED',
     isFreeTier: false,
-    dailyQuotaInfo: 'High-speed synthesis (~$0.045/image)',
-    billingRequirement: 'Requires linked Google Cloud billing in AI Studio ($0.045/image).',
+    dailyQuotaInfo: 'Paid image generation; see current Google pricing',
+    billingRequirement: 'Requires billing and available image quota in Google AI Studio.',
     maxRequestsPerWindow: 30,   // High-throughput allowance
     windowMs: 60000,
     minDelayMs: 1200,
@@ -58,7 +49,7 @@ export const AVAILABLE_MODELS: Record<string, ModelTierConfig> = {
   }
 };
 
-export const DEFAULT_MODEL_ID = 'gemini-2.5-flash-image';
+export const DEFAULT_MODEL_ID = 'gemini-3.1-flash-image';
 
 export interface DecayFrameOptions {
   injections: string[];
@@ -139,35 +130,20 @@ export class GeminiDecayService {
 
   private initVisitorKey() {
     if (typeof window === 'undefined') return;
-
+    // Legacy key URLs are scrubbed but never accepted or stored. A URL may
+    // already have reached the host, so scrubbing is not a security guarantee.
     try {
       const params = new URLSearchParams(window.location.search);
-      const urlKey = params.get('gemini_api_key');
-
-      if (urlKey) {
-        this.visitorApiKey = urlKey;
-        try {
-          sessionStorage.setItem('decay_visitor_key', urlKey);
-          localStorage.setItem('decay_visitor_key', urlKey);
-        } catch (_) {}
-
-        // Security: Scrub key from the address bar immediately
+      if (params.has('gemini_api_key')) {
         params.delete('gemini_api_key');
-        const newQuery = params.toString();
-        const newUrl = window.location.pathname + (newQuery ? `?${newQuery}` : '') + window.location.hash;
-        window.history.replaceState({}, document.title, newUrl);
-      } else {
-        const sessionKey = sessionStorage.getItem('decay_visitor_key');
-        const localKey = localStorage.getItem('decay_visitor_key');
-        if (sessionKey) {
-          this.visitorApiKey = sessionKey;
-        } else if (localKey) {
-          this.visitorApiKey = localKey;
-          try {
-            sessionStorage.setItem('decay_visitor_key', localKey);
-          } catch (_) {}
-        }
+        const query = params.toString();
+        window.history.replaceState({}, document.title,
+          window.location.pathname + (query ? `?${query}` : '') + window.location.hash);
       }
+    } catch (_) {}
+    try {
+      this.visitorApiKey = sessionStorage.getItem('decay_visitor_key') ||
+        localStorage.getItem('decay_visitor_key');
     } catch (_) {}
   }
 
@@ -175,7 +151,7 @@ export class GeminiDecayService {
     if (typeof window === 'undefined') return;
     try {
       const savedModel = localStorage.getItem('decay_selected_model');
-      if (savedModel && AVAILABLE_MODELS[savedModel]) {
+      if (savedModel && savedModel !== 'gemini-2.5-flash-image' && AVAILABLE_MODELS[savedModel]) {
         this.selectedModelId = savedModel;
       }
     } catch (_) {}
@@ -211,13 +187,11 @@ export class GeminiDecayService {
           return localKey;
         }
       } catch (_) {}
-      const params = new URLSearchParams(window.location.search);
-      return params.get('gemini_api_key');
     }
     return null;
   }
 
-  setVisitorApiKey(key: string | null, remember: boolean = true) {
+  setVisitorApiKey(key: string | null, remember: boolean = false) {
     this.visitorApiKey = key;
     if (typeof window !== 'undefined') {
       try {
@@ -310,7 +284,7 @@ export class GeminiDecayService {
 
     if (!response!.ok) {
       const errData = await response!.json().catch(() => ({ error: response!.statusText }));
-      const errorMessage = errData.error || `HTTP ${response!.status}: Decay request failed`;
+      const errorMessage = redactApiError(errData.error || `HTTP ${response!.status}: Decay request failed`, effectiveVisitorKey);
       
       if (
         errorMessage.includes('DAILY_QUOTA_EXHAUSTED') ||
@@ -428,8 +402,7 @@ export class GeminiDecayService {
         }
       }
     } catch (err: any) {
-      const errMsg = err?.message || String(err);
-      console.error(`Direct invocation of ${targetModelConfig.id} failed:`, err);
+      const errMsg = redactApiError(err?.message || String(err), apiKey);
 
       if (
         errMsg.includes('DAILY_QUOTA_EXHAUSTED') ||
@@ -446,7 +419,7 @@ export class GeminiDecayService {
         throw new Error("RATE_LIMIT_RPM: Short-term rolling minute limit reached. Entering brief cooldown...");
       }
       if (errMsg.includes('billing') || errMsg.includes('BILLING') || errMsg.includes('Billing')) {
-        throw new Error(`BILLING_REQUIRED: Google requires linked Google Cloud billing in AI Studio for image models (~$0.04/image).`);
+        throw new Error(`BILLING_REQUIRED: Google requires linked Google Cloud billing in AI Studio for image models (see current Google pricing).`);
       }
       if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid')) {
         throw new Error("API_KEY_INVALID: The provided Gemini API key was rejected by Google.");

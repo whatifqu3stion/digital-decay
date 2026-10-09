@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import { redactApiError } from './utils/keyUtils';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,7 +38,7 @@ app.post('/api/decay', async (req, res) => {
 
     if (!visitorKey) {
       return res.status(401).json({
-        error: 'VISITOR_KEY_REQUIRED: Strict BYOK mode enabled. To protect the host from compute charges, every visitor must supply their own Gemini API key via URL parameter: ?gemini_api_key=YOUR_KEY'
+        error: 'VISITOR_KEY_REQUIRED: Strict BYOK mode enabled. To protect the host from compute charges, every visitor must supply their own Gemini API key through the API Key setup dialog'
       });
     }
 
@@ -52,7 +53,7 @@ app.post('/api/decay', async (req, res) => {
       }
     });
 
-    const modelName = req.body?.model || 'gemini-2.5-flash-image';
+    const modelName = req.body?.model || 'gemini-3.1-flash-image';
 
     const decayRate = options?.decayRate ?? 1.0;
     let temperature = (decayRate - 0.5) * 1.8 + 0.1;
@@ -92,7 +93,7 @@ app.post('/api/decay', async (req, res) => {
       }
     };
 
-    if (modelName === 'gemini-2.5-flash-image') {
+    if (modelName === 'gemini-2.5-flash-image' || modelName === 'gemini-3.1-flash-image') {
       configObj.responseModalities = ['TEXT', 'IMAGE'];
     }
 
@@ -127,8 +128,8 @@ app.post('/api/decay', async (req, res) => {
 
     return res.status(500).json({ error: 'MODEL_ERROR: Fragment manifestation failed.' });
   } catch (error: any) {
-    console.error('Decay endpoint error:', error);
-    const msg = error.message || 'Decay generation failed';
+    const msg = redactApiError(error.message || 'Decay generation failed', req.headers['x-gemini-api-key'] as string | undefined);
+    console.error('Decay endpoint error:', msg);
 
     if (
       msg.includes('limit: 0') ||

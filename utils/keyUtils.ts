@@ -45,3 +45,13 @@ export const parseAndValidateGeminiKey = (raw: string): ParsedKeyResult => {
     isStandardGeminiFormat
   };
 };
+
+/** Never persist or display a provider error containing a visitor credential. */
+export const redactApiError = (message: unknown, apiKey?: string | null): string => {
+  let safe = String(message);
+  if (apiKey) {
+    safe = safe.split(apiKey).join('[REDACTED]');
+    safe = safe.split(encodeURIComponent(apiKey)).join('[REDACTED]');
+  }
+  return safe.replace(/AIza[0-9A-Za-z_-]{35}/g, '[REDACTED]');
+};
