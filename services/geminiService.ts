@@ -314,12 +314,13 @@ export class GeminiDecayService {
       
       if (
         errorMessage.includes('DAILY_QUOTA_EXHAUSTED') ||
+        errorMessage.includes('IMAGE_QUOTA_EXHAUSTED') ||
         errorMessage.includes('limit: 0') ||
         errorMessage.includes('RequestsPerDay') ||
         errorMessage.includes('Please retry in') ||
         errorMessage.includes('check your plan and billing')
       ) {
-        throw new Error("DAILY_QUOTA_EXHAUSTED: Google has allocated 0 free image generations for this project (limit: 0) or daily quota is depleted. Please connect an API key with Google Cloud billing enabled.");
+        throw new Error("IMAGE_QUOTA_EXHAUSTED: Google has allocated 0 image generations for this project (limit: 0). Please connect an API key with Google Cloud billing enabled.");
       }
 
       if (response!.status === 429 || errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
@@ -431,12 +432,14 @@ export class GeminiDecayService {
       console.error(`Direct invocation of ${targetModelConfig.id} failed:`, err);
 
       if (
+        errMsg.includes('DAILY_QUOTA_EXHAUSTED') ||
+        errMsg.includes('IMAGE_QUOTA_EXHAUSTED') ||
         errMsg.includes('limit: 0') ||
         errMsg.includes('RequestsPerDay') ||
         errMsg.includes('Please retry in') ||
         errMsg.includes('check your plan and billing')
       ) {
-        throw new Error("DAILY_QUOTA_EXHAUSTED: Google has allocated 0 free image generations for this project (limit: 0) or daily quota is depleted. Please connect an API key with Google Cloud billing enabled.");
+        throw new Error("IMAGE_QUOTA_EXHAUSTED: Google has allocated 0 image generations for this project (limit: 0). Please connect an API key with Google Cloud billing enabled.");
       }
 
       if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED')) {

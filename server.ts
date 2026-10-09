@@ -137,7 +137,7 @@ app.post('/api/decay', async (req, res) => {
       msg.includes('check your plan and billing')
     ) {
       return res.status(429).json({
-        error: "DAILY_QUOTA_EXHAUSTED: Google has allocated 0 free image generations for this project (limit: 0) or daily quota is depleted. Please connect an API key with Google Cloud billing enabled."
+        error: "IMAGE_QUOTA_EXHAUSTED: Google has allocated 0 image generations for this project (limit: 0). Please connect an API key with Google Cloud billing enabled."
       });
     }
 

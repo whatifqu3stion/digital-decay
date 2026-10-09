@@ -724,6 +724,7 @@ const App: React.FC = () => {
           
           // 1. Hard daily quota exhaustion or zero-quota plan (e.g. limit: 0, retry in 6h)
           if (
+            errorMessage.includes('IMAGE_QUOTA_EXHAUSTED') ||
             errorMessage.includes('DAILY_QUOTA_EXHAUSTED') ||
             errorMessage.includes('limit: 0') ||
             errorMessage.includes('RequestsPerDay') ||
