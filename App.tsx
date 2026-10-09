@@ -103,18 +103,22 @@ const App: React.FC = () => {
   const sessionRestoredRef = useRef(false);
 
   const addLog = useCallback((message: string, type: LogEntry['type'] = 'info') => {
-    const newLog: LogEntry = {
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: new Date().toLocaleTimeString(),
-      message: `> ${message}`,
-      type
-    };
+    const formattedMessage = `> ${message}`;
     setLogs(prev => {
-        // Prevent duplicate consecutive entries with identical content
-        const lastLog = prev[prev.length - 1];
-        if (lastLog && lastLog.message === `> ${message}`) {
-          return prev;
+        // Prevent duplicate entries in recent history unless it is active frame progress
+        const isProgressionLog = message.includes('FRAME:') || message.includes('LATENCY:') || message.includes('ARTIFACT_');
+        if (!isProgressionLog) {
+          const recentLogs = prev.slice(-3);
+          if (recentLogs.some(l => l.message === formattedMessage)) {
+            return prev;
+          }
         }
+        const newLog: LogEntry = {
+          id: Math.random().toString(36).substr(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          message: formattedMessage,
+          type
+        };
         const updated = [...prev.slice(-99), newLog];
         DBService.saveState('logs', updated); // Persist logs
         return updated;
@@ -197,14 +201,17 @@ const App: React.FC = () => {
              if (savedConfig.imageFitMode) setImageFitMode(savedConfig.imageFitMode);
         }
 
-        // Provide a single clean notice in debug console about key status
+        // Provide a single clean notice in debug console about key status if not already present
         if (typeof window !== 'undefined') {
           const hasKey = decayService.current.getVisitorApiKey();
           setKeyAttached(!!hasKey);
-          if (hasKey) {
-            addLog("NOTICE: Visitor key active. Ready to execute decay sequences.", 'success');
-          } else {
-            addLog("NOTICE: No API key detected. Add ?gemini_api_key=YOUR_KEY to URL to generate.", 'info');
+          const hasPriorNotice = savedLogs && savedLogs.some((l: LogEntry) => l.message.includes('Visitor key active') || l.message.includes('No API key'));
+          if (!hasPriorNotice) {
+            if (hasKey) {
+              addLog("NOTICE: Visitor key active. Ready to execute decay sequences.", 'success');
+            } else {
+              addLog("NOTICE: No API key connected. Click [KEY: UNLINKED] to attach your key.", 'info');
+            }
           }
         }
       } catch (err) {
@@ -1119,6 +1126,7 @@ const App: React.FC = () => {
         selectedModelId={selectedModelId}
         quotaNotice={authModalNotice}
         onSelectModel={(modelId) => {
+          if (modelId === selectedModelId) return;
           setSelectedModelId(modelId);
           decayService.current.setSelectedModel(modelId);
           addLog(`MODEL_SELECT: Active engine set to ${decayService.current.getSelectedModel().name}`, 'info');

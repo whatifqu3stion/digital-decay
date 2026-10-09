@@ -42,7 +42,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
     playAudio('success');
     setSuccessMsg("✓ Key verified & attached");
 
-    if (onSelectModel) {
+    if (onSelectModel && activeModel !== selectedModelId) {
       onSelectModel(activeModel);
     }
 
@@ -87,7 +87,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
   const handleModelSelect = (id: string) => {
     playAudio('click');
     setActiveModel(id);
-    if (onSelectModel) {
+    if (onSelectModel && id !== selectedModelId) {
       onSelectModel(id);
     }
   };
