@@ -1156,7 +1156,9 @@ const App: React.FC = () => {
             <div className="flex items-center gap-2">
               <h1 className="text-3xl md:text-4xl font-bold tracking-tighter glitch-text text-[#00ffd5] uppercase">DIGITAL_DECAY</h1>
             </div>
-            <p className="text-xs md:text-sm tracking-widest opacity-60 text-[#e5e5e5] font-bold">ENTROPY_ANALYSIS_UNIT // v2.0.0</p>
+            <p className="text-xs md:text-sm tracking-widest opacity-70 text-[#e5e5e5] font-bold uppercase">
+              OBSERVING VISUAL MUTATION ACROSS RECURSIVE AI GENERATIONS
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
