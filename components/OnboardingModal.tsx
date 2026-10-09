@@ -270,7 +270,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                           onClick={() => playAudio('click')}
                           className="px-3 py-2 border border-[#00ffd5]/60 text-[#00ffd5] hover:bg-[#00ffd5] hover:text-black font-bold tracking-widest text-xs uppercase text-center transition-all whitespace-nowrap"
                         >
-                          1. GET FREE KEY ↗
+                          1. GET API KEY ↗
                         </a>
                         <button
                           onClick={handleDirectClipboardPaste}

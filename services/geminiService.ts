@@ -443,7 +443,7 @@ export class GeminiDecayService {
         throw new Error("RATE_LIMIT_RPM: Short-term rolling minute limit reached. Entering brief cooldown...");
       }
       if (errMsg.includes('billing') || errMsg.includes('BILLING') || errMsg.includes('Billing')) {
-        throw new Error(`BILLING_REQUIRED: ${targetModelConfig.name} requires an active Google Cloud billing account. Switch to ${AVAILABLE_MODELS['gemini-2.5-flash-image'].name} for the free tier.`);
+        throw new Error(`BILLING_REQUIRED: Google requires linked Google Cloud billing in AI Studio for image models (~$0.04/image).`);
       }
       if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid')) {
         throw new Error("API_KEY_INVALID: The provided Gemini API key was rejected by Google.");

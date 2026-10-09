@@ -1184,7 +1184,7 @@ const App: React.FC = () => {
             }`}
             title={`Active Engine: ${decayService.current.getSelectedModel().name}. Click to switch model or manage key.`}
           >
-            <span>{selectedModelId === 'gemini-2.5-flash-image' ? '⚡ 2.5 FLASH [FREE TIER]' : '💎 3.1 FLASH [PAID TIER]'}</span>
+            <span>{selectedModelId === 'gemini-2.5-flash-image' ? '⚡ 2.5 FLASH' : '💎 3.1 FLASH'}</span>
           </button>
 
           {/* Key Status Button */}
