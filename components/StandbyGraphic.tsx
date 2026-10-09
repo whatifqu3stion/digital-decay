@@ -99,9 +99,12 @@ ______________________________________________________________________________â–
       }}
     >
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <h2 className="text-xl md:text-3xl lg:text-4xl font-black tracking-[0.3em] uppercase mb-4 text-center z-10 whitespace-nowrap">
+          <h2 className="text-xl md:text-3xl lg:text-4xl font-black tracking-[0.3em] uppercase mb-1 text-center z-10 whitespace-nowrap">
             AWAITING SUBJECT
           </h2>
+          <p className="text-[10px] md:text-xs font-mono tracking-widest uppercase opacity-80 text-center mb-4 z-10">
+            LOAD AN IMAGE BELOW TO BEGIN 69 RECURSIVE CYCLES
+          </p>
           <pre className="font-mono font-bold leading-none text-center opacity-60 whitespace-pre text-[0.55vw] lg:text-[0.3vw] tracking-tighter">
             {treeAscii}
           </pre>

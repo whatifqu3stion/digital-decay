@@ -599,6 +599,7 @@ const App: React.FC = () => {
     }
 
     if (!decayService.current.getVisitorApiKey()) {
+      setAuthModalNotice("Connect your Gemini API key with linked Google Cloud billing to run generations.");
       setShowAuthModal(true);
       addLog("AUTH_REQUIRED: Connect your Gemini API key to begin generation.", "warning");
       playAudio('error');
@@ -1153,11 +1154,18 @@ const App: React.FC = () => {
             </span>
           </button>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <h1 className="text-3xl md:text-4xl font-bold tracking-tighter glitch-text text-[#00ffd5] uppercase">DIGITAL_DECAY</h1>
+              <button
+                onClick={() => { setShowOnboarding(true); playAudio('click'); }}
+                className="text-[10px] px-2 py-0.5 border border-[#00ffd5]/50 text-[#00ffd5] hover:bg-[#00ffd5] hover:text-black uppercase font-bold tracking-wider transition-colors cursor-pointer"
+                title="View how the recursive experiment works"
+              >
+                [ ? HOW IT WORKS ]
+              </button>
             </div>
-            <p className="text-xs md:text-sm tracking-widest opacity-70 text-[#e5e5e5] font-bold uppercase">
-              OBSERVING VISUAL MUTATION ACROSS RECURSIVE AI GENERATIONS
+            <p className="text-xs md:text-sm tracking-widest text-[#00ffd5]/80 font-bold uppercase">
+              RECURSIVE AI DECAY // 69 GENERATIONS OF VISUAL DRIFT
             </p>
           </div>
         </div>

@@ -10,23 +10,23 @@ interface OnboardingModalProps {
 
 const STEPS = [
   {
-    title: "RECURSIVE DECAY LOOP",
-    content: "This tool utilizes Gemini 2.5 Flash in a recursive image-to-image feedback loop.\n\nFrame N becomes the Input Tensor for Frame N+1 across 69 generations, compounding hallucinations into a stabilized Hero Artifact.",
-    action: "PROCEED_TO_ENTROPY"
+    title: "1. THE RECURSIVE EXPERIMENT",
+    content: "Upload any image and feed it back into Gemini across 69 continuous cycles.\n\nEach frame becomes the direct input for the next, letting subtle AI re-interpretations compound into dramatic visual drift.",
+    action: "NEXT: CONTROLS"
   },
   {
-    title: "ENTROPY & TEMPERATURE",
-    content: "The 'Entropy' slider directly controls the model's Temperature parameter (0.1 - 1.9).\n\nLOW (0.1) = Vector Smoothing & Replication.\nHIGH (1.9) = Chaos & Hallucination.\nTokens like 'VHS Distortion' and 'Bitcrush' inject procedural noise.",
-    action: "IMAGE_PIPELINE"
+    title: "2. ENTROPY & MUTATORS",
+    content: "The Entropy slider adjusts AI creativity (0.1 = faithful reproduction, 1.9 = wild hallucination).\n\nToggle aesthetic mutators like Datamosh, Bitcrush, or VHS Noise to steer how the image decays.",
+    action: "NEXT: INPUT"
   },
   {
-    title: "IMAGE INPUT TERMINAL",
-    content: "Load an image file or initialize Live Optical Sensor capture to latch your source subject.\n\nChoose between FIT (preserve entire frame) or CROP (fill square) before initiating the decay process.",
-    action: "SYSTEM_AUTHORIZATION"
+    title: "3. FEED AN IMAGE",
+    content: "Upload any photo or capture live from your webcam to latch your source subject.\n\nChoose FIT (keep aspect ratio) or CROP (fill square) before initiating the sequence.",
+    action: "NEXT: API ACCESS"
   },
   {
-    title: "CONNECT YOUR GEMINI KEY (BYOK)",
-    content: "To run generations on your personal quota, connect a free Gemini API key.\n\nKeys are remembered securely in your browser's private local device memory (localStorage) so you only ever have to connect once.",
+    title: "4. GEMINI KEY & BILLING",
+    content: "Connect your Google Gemini API key to run generations directly on your account.\n\nNote: Google requires linked Google Cloud billing in AI Studio for image models (~$0.04/image; unbilled keys have 0 image quota).",
     action: "ENTER_TERMINAL"
   }
 ];
