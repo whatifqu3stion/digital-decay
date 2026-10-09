@@ -128,7 +128,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
               1. Choose Engine
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {/* Free Tier Card */}
+              {/* 2.5 Flash Card */}
               <button
                 type="button"
                 onClick={() => handleModelSelect(model25.id)}
@@ -140,13 +140,13 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="font-bold text-[11px] text-[#00ffd5]">2.5 Flash</span>
-                  <span className="text-[9px] bg-[#00ffd5]/20 text-[#00ffd5] px-1 py-0.5 rounded font-bold">FREE</span>
+                  <span className="text-[9px] border border-[#00ffd5]/40 text-[#00ffd5] px-1 py-0.5 rounded">STANDARD</span>
                 </div>
-                <p className="text-[10px] text-[#e5e5e5]/80 leading-tight">~500 requests/day</p>
-                <p className="text-[9px] text-[#00ffd5]/60 mt-1 font-semibold">No credit card needed</p>
+                <p className="text-[10px] text-[#e5e5e5]/80 leading-tight">Standard resolution</p>
+                <p className="text-[9px] text-[#e5e5e5]/50 mt-1 font-semibold">~$0.039 / generation</p>
               </button>
 
-              {/* Paid Tier Card */}
+              {/* 3.1 Flash Card */}
               <button
                 type="button"
                 onClick={() => handleModelSelect(model31.id)}
@@ -158,10 +158,10 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="font-bold text-[11px] text-white">3.1 Flash</span>
-                  <span className="text-[9px] border border-[#e5e5e5]/30 text-[#e5e5e5]/70 px-1 py-0.5 rounded">PAID</span>
+                  <span className="text-[9px] border border-[#00ffd5]/40 text-[#00ffd5] px-1 py-0.5 rounded">HIGH-RES</span>
                 </div>
-                <p className="text-[10px] text-[#e5e5e5]/80 leading-tight">High resolution</p>
-                <p className="text-[9px] text-[#e5e5e5]/50 mt-1">Requires Google Cloud billing</p>
+                <p className="text-[10px] text-[#e5e5e5]/80 leading-tight">Fast generation</p>
+                <p className="text-[9px] text-[#e5e5e5]/50 mt-1 font-semibold">~$0.045 / generation</p>
               </button>
             </div>
           </div>
@@ -179,7 +179,7 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
                 onClick={() => playAudio('click')}
                 className="text-[10px] text-[#00ffd5] hover:underline"
               >
-                Get free key ↗
+                Get API key ↗
               </a>
             </div>
 
@@ -209,6 +209,27 @@ export const AuthKeyModal: React.FC<AuthKeyModalProps> = ({
                 📋 Paste from Clipboard
               </button>
             </form>
+          </div>
+
+          {/* Educational Note about Limit: 0 */}
+          <div className="p-2.5 border border-[#00ffd5]/20 bg-[#00ffd5]/5 text-[10px] text-[#e5e5e5]/80 space-y-1">
+            <div className="font-bold text-[#00ffd5] uppercase tracking-wider">
+              ℹ️ WHY DOES A VALID KEY SHOW "LIMIT: 0"?
+            </div>
+            <p className="leading-relaxed">
+              Google provides free quota for text chat, but sets <strong>0 quota for image generation</strong> unless Google Cloud Billing is enabled on your AI Studio project.
+            </p>
+            <div className="pt-1">
+              <a
+                href="https://aistudio.google.com/app/plan_information"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => playAudio('click')}
+                className="text-[#00ffd5] font-bold hover:underline inline-flex items-center gap-1"
+              >
+                <span>Set up billing in Google AI Studio ↗</span>
+              </a>
+            </div>
           </div>
 
           {/* Feedback Messages */}

@@ -674,7 +674,8 @@ const App: React.FC = () => {
               customPrompt, 
               overrideCoreDirective,
               decayRate,
-              modelId: selectedModelId
+              modelId: selectedModelId,
+              visitorApiKey: decayService.current.getVisitorApiKey() || undefined
             }
           );
 
@@ -730,10 +731,11 @@ const App: React.FC = () => {
             errorMessage.includes('BILLING_REQUIRED')
           ) {
             playAudio('error');
-            addLog(`🚫 QUOTA LIMIT (limit: 0): Google has allocated 0 free generations for this key/plan.`, 'error');
-            addLog(`ACTION: Connect an API key from an AI Studio project with Google Cloud billing enabled.`, 'warning');
+            addLog(`🚫 GOOGLE QUOTA LIMIT (limit: 0): Your API key is authentic, but Google assigns 0 image quota to unbilled projects.`, 'error');
+            addLog(`ℹ️ CAUSE: Google requires linked Google Cloud Billing on your AI Studio project for image generation models.`, 'warning');
+            addLog(`👉 FIX: Go to aistudio.google.com/app/plan_information to enable billing on your project.`, 'info');
             setAppState(AppState.ERROR);
-            setAuthModalNotice("Google allocated 0 free image quota (limit: 0) for this key. Please connect an API key from an AI Studio project with Google Cloud billing enabled.");
+            setAuthModalNotice("Your key is authentic, but Google assigns 0 image quota to unbilled projects. Please enable billing on your project at aistudio.google.com/app/plan_information.");
             setShowAuthModal(true);
             return;
           }

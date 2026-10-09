@@ -33,27 +33,27 @@ export const AVAILABLE_MODELS: Record<string, ModelTierConfig> = {
   'gemini-2.5-flash-image': {
     id: 'gemini-2.5-flash-image',
     name: 'Gemini 2.5 Flash Image',
-    shortLabel: '2.5 Flash (Free)',
-    badge: 'FREE TIER // NO CC REQUIRED',
-    isFreeTier: true,
-    dailyQuotaInfo: '~500 free generations per day',
-    billingRequirement: 'No credit card or billing account needed. Works with standard free AI Studio keys.',
-    maxRequestsPerWindow: 8,    // Safely under the 10 RPM ceiling
-    windowMs: 60000,            // 60-second rolling window
-    minDelayMs: 4000,           // 4s minimum pacing between completed frames
+    shortLabel: '2.5 Flash',
+    badge: 'STANDARD // BILLING LINKED',
+    isFreeTier: false,
+    dailyQuotaInfo: 'Standard resolution (~$0.039/image)',
+    billingRequirement: 'Requires linked Google Cloud billing in AI Studio (Google assigns limit: 0 to unbilled projects).',
+    maxRequestsPerWindow: 10,   // Standard pacing
+    windowMs: 60000,
+    minDelayMs: 3000,
     responseModalities: ['TEXT', 'IMAGE']
   },
   'gemini-3.1-flash-image': {
     id: 'gemini-3.1-flash-image',
     name: 'Gemini 3.1 Flash Image',
-    shortLabel: '3.1 Flash (Paid)',
-    badge: 'PAID TIER // BILLING LINKED',
+    shortLabel: '3.1 Flash',
+    badge: 'NANO BANANA 2 // BILLING LINKED',
     isFreeTier: false,
-    dailyQuotaInfo: 'Unlimited pay-as-you-go quota',
-    billingRequirement: 'Requires Google Cloud billing enabled on your AI Studio project ($0.045/image).',
+    dailyQuotaInfo: 'High-speed synthesis (~$0.045/image)',
+    billingRequirement: 'Requires linked Google Cloud billing in AI Studio ($0.045/image).',
     maxRequestsPerWindow: 30,   // High-throughput allowance
     windowMs: 60000,
-    minDelayMs: 1200,           // 1.2s rapid pacing
+    minDelayMs: 1200,
     responseModalities: ['TEXT', 'IMAGE']
   }
 };
