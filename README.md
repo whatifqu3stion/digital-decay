@@ -2,7 +2,7 @@
 
 **What happens when AI keeps recreating its own last image?**
 
-Digital Decay is a creative experiment in repeated AI image generation. Start with an image, ask Gemini to recreate it, then feed that result back in. Over 69 generations, small changes can accumulate until the image takes on a different character.
+Digital Decay is a creative experiment in recursive AI image generation. Start with an image, ask Gemini to recreate it, then feed that result back in. Over 69 generations, small changes can accumulate until the image takes on a different character.
 
 [Open the app](https://whatifqu3stion.github.io/digital-decay/) · [Explore the code](services/geminiService.ts) · [Key handling and security review](docs/security-review.md)
 
