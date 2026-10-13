@@ -8,6 +8,8 @@ Digital Decay is a creative experiment in recursive AI image generation. Start w
 
 ## An example
 
+![Digital Decay animation showing an image changing through successive AI generations.](docs/examples/decay_animation-optimize.gif)
+
 ![Source image on the left; frame 69 on the right, with the same broad composition transformed into bold outlines and patterned surfaces.](docs/examples/decay-comparison-frame-69.png)
 
 *Source → frame 69. The person, plate and general arrangement remain recognizable, while realistic textures give way to outlines, patterns and a more illustrative style. This is one example, not a prediction of every run.*
