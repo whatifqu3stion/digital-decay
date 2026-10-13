@@ -30,6 +30,25 @@ The idea echoes Alvin Lucier's [*I am sitting in a room*](https://www.moma.org/e
 
 “Decay” is a creative framing. Some results become more orderly or decorative. The images alone cannot establish what is happening inside the model, reveal particular training examples, or prove that it converges toward a stable destination. The 69-generation endpoint is a limit set by the app, not a scientific threshold.
 
+## Design decisions
+
+The design challenge is to make an unfamiliar process inviting enough to try and clear enough to investigate. The retro terminal gives the experiment a playful identity; the controls need to help people understand what they are changing.
+
+<table>
+<tr>
+<td align="center" valign="top" width="33%"><a href="docs/ux/workspace.jpg"><img src="docs/ux/workspace.jpg" width="240" alt="Source image loaded in the comparison workspace, with fit, crop and start controls visible and advanced settings collapsed."></a></td>
+<td align="center" valign="top" width="33%"><a href="docs/ux/controls.jpg"><img src="docs/ux/controls.jpg" width="240" alt="Expanded advanced settings showing entropy, custom instructions and optional visual effects."></a></td>
+<td align="center" valign="top" width="33%"><a href="docs/ux/key-setup.jpg"><img src="docs/ux/key-setup.jpg" width="240" alt="Key setup dialog with model choice, billing guidance and an unchecked remember-key option."></a></td>
+</tr>
+<tr>
+<td valign="top"><strong>Keep the first step small.</strong> Load and frame an image before opening advanced settings. The comparison divider keeps the source available as a visual reference. Shown here before generation.</td>
+<td valign="top"><strong>Reveal depth when wanted.</strong> Temperature, custom instructions and effects sit behind one expandable panel, giving curious users room to experiment without putting every choice in the starting view.</td>
+<td valign="top"><strong>Make the commitment visible.</strong> Model choice, billing guidance and key storage sit together. BYOK makes running costs the visitor's responsibility, so setup needs to explain that before generation.</td>
+</tr>
+</table>
+
+*Screenshots from the live app. Select an image to view it at full size.*
+
 ## How it works
 
 1. **Choose an image.** Upload a file or capture one with the camera. Fit it within a square or crop it to fill the square.
@@ -62,17 +81,18 @@ For a more useful comparison, begin separate runs with the same source and chang
 
 The default is Gemini 3.1 Flash Image. The older 2.5 option is labeled legacy because Google's documentation marks it deprecated. Availability and quotas depend on Google and your project.
 
-## Design and implementation
+## Architecture behind the experience
 
-The retro terminal presents the process as an experiment in progress. The useful part is being able to inspect the steps, not just admire the last image.
+React and TypeScript manage the interface; Google's GenAI SDK handles image generation. The supporting choices follow the needs of the experiment:
 
-- **React + TypeScript** manage the controls, comparison view and generation sequence.
-- **Google's GenAI SDK** sends each image and instruction to Gemini.
-- **IndexedDB**, the browser's local database, stores frames and session state for later inspection. Browser storage can be cleared or evicted, so export anything you want to keep.
-- **Request pacing** spaces calls out and retries errors classified as temporary rate limits. It cannot guarantee quota availability; billing, daily limits and other failures can still stop a run.
-- **Canvas and GIF workers** prepare exports in the browser. The source plus 69 generations can produce up to 70 frames.
+| Need | Implementation and tradeoff |
+| --- | --- |
+| Inspect the journey, not just the last image | Save frames and session state in IndexedDB, the browser's local database. This supports history inspection without a hosted image store, but browser data can be cleared or evicted. |
+| Keep a long run understandable | Space requests out and report progress, cooldowns and errors. Retry errors classified as temporary rate limits; billing and other failures can still stop the sequence. |
+| Let people keep their results | Prepare stills, comparisons and GIFs with Canvas and browser workers. Exports avoid a separate rendering service, but large sequences use the visitor's memory and processing power. |
+| Share an experiment without funding every visitor's run | On GitHub Pages, send requests directly to Google using the visitor's key. This simplifies hosting but adds key setup and browser-security tradeoffs. Local development instead uses the included Express forwarding server. |
 
-On GitHub Pages, generation requests go directly from the browser to Google. Local development uses the included Express server, which forwards the visitor's key and image to Google. Neither route uses a host-funded fallback key.
+The source plus 69 generations can produce up to 70 frames. Neither deployment route uses a host-funded fallback key.
 
 ### API key privacy
 
