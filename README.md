@@ -12,8 +12,6 @@ Digital Decay is a creative experiment in recursive AI image generation. Start w
 
 *Source → frame 69. The person, plate and general arrangement remain recognizable, while realistic textures give way to outlines, patterns and a more illustrative style. This is one example, not a prediction of every run.*
 
-The [supplied source GIF](docs/examples/source-still.gif) is also included. It contains one frame, so it is a still reference rather than a recording of the transformation.
-
 ## The exploration
 
 Copying a digital file can preserve every bit. Asking an image model to recreate it is a different operation: the model generates a new image, and that image can introduce changes. Here, each change becomes part of the next input. The model sees its latest output, rather than returning to the original each time.
